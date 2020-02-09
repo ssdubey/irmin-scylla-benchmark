@@ -1,6 +1,17 @@
 open Lwt.Infix
 
-let formatkey k v = (* 172.17.0.2-Irmin *)
+(**Input format:
+Depth level 1:
+K1,V1
+K2,V2
+
+Depth level 2:
+K1-K11,V1
+K2-K22,V2 *)
+
+
+(**format key function is to parse keys with depth level > 1 *)
+let formatkey k v = 
   let klist = String.split_on_char('-') k in 
   (klist,v)
 
@@ -13,9 +24,8 @@ let kvpairlist = (match line_sep with
 | _ -> kvlist) in
 kvpairlist
 
-let benchmark inputbuf =
+let createKVPairList inputbuf =
   let line_sep = String.split_on_char('\n') inputbuf in
-  print_string ("\nno. of entries: " ); print_int (List.length line_sep);
   let kvpairlist = func [] line_sep in
   kvpairlist
 
@@ -33,7 +43,7 @@ try
 
 let kvpairfun path = 
   let contentbuf = readfile (open_in path) in 
-  let kvpairlist = benchmark contentbuf in
+  let kvpairlist = createKVPairList contentbuf in
   kvpairlist
 
 (* ------------------------------------------------------------------- *)
@@ -48,8 +58,10 @@ match kvpairlist with
         insIntoStore t b_master
 | _ -> ()
 
+
+(** The function reads the input file, parses the data into key and value, inserts it into the C* store and records the time for db operation. *)
 let _ =
-let path = "/home/shashank/work/benchmark_irminscylla/input/keydepth2/10-20-200/2000" in
+let path = "/home/shashank/work/createKVPairList_irminscylla/input/keydepth2/10-20-200/2000" in
 
 let conf = Irmin_scylla.config "127.0.0.1" in
 Scylla_kvStore.Repo.v conf >>= fun repo ->
