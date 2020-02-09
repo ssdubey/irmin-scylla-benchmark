@@ -1,10 +1,16 @@
 open Lwt.Infix
 
 (* ---------------------------------------------------------------------- *)
+let formatkey k v = (* 172.17.0.2-Irmin *)
+  let klist = String.split_on_char('-') k in 
+  (klist,v)
+
+
 let rec func kvlist line_sep =
 let kvpairlist = (match line_sep with
 | p::p_lst -> (let pair = String.split_on_char(',') p in
-        let a = (match pair with | k::v::[] -> (k,v) | _ -> ("","")) in
+        (* let a = (match pair with | k::v::[] -> (k,v) | _ -> ("","")) in *)
+        let a = (match pair with | k::v::[] -> formatkey k v | _ -> ([],"")) in
           func (a::kvlist) p_lst)
 | _ -> kvlist) in
 (* print_string ("\nkvpairlist length in rec func: " ); print_int (List.length kvpairlist); *)
@@ -29,7 +35,7 @@ try
     while true do
       let line = input_line fileloc in
       Buffer.add_string buf line;
-      Buffer.add_char buf '\n'
+      Buffer.add_char buf '\n';
     done;
     assert false (* This is never executed
                     (always raise Assert_failure). *)
@@ -52,14 +58,14 @@ module Scylla_kvStore = Irmin_scylla.KV(Irmin.Contents.String)
 let rec fprintf kvpairlist b_master = 
 match kvpairlist with
 |h::t -> let k, v = h in
-        ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) b_master [k] v;
+        ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) b_master k v;
         fprintf t b_master
 | _ -> ()
 
 let _ =
-let path = "/home/shashank/work/benchmark_irminscylla/input/10-50/10000" in
+let path = "/home/shashank/work/benchmark_irminscylla/input/keydepth2/10-20-200/2000" in
 
-let conf = Irmin_scylla.config "172.17.0.2" in
+let conf = Irmin_scylla.config "127.0.0.1" in
 Scylla_kvStore.Repo.v conf >>= fun repo ->
 	Scylla_kvStore.master repo >>= fun b_master ->
 

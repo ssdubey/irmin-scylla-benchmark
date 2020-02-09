@@ -1,5 +1,0 @@
-for i in {1..5000}
-do
-echo $(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 10 | head -n 1),$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 50 | head -n 1) >> 5000
-done
-echo "----------------------------"
