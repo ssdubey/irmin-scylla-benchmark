@@ -1,0 +1,4 @@
+(executable
+(name buildlib)
+(libraries parse irmin irmin-scylla lwt )
+(link_flags (-cclib -lstdc++ -cclib -lssl -cclib -lcrypto)))

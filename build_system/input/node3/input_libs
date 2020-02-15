@@ -1,0 +1,7 @@
+jsonm "opaminstalljsonm",
+astring "opaminstallastring",
+base64 "opaminstallbase64",
+digestif "opaminstalldigestif"
+fmt "opaminstallfmt"
+ocmalgraph "opaminstallocmalgraph"
+dune "opaminstalldune"

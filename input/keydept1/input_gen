@@ -1,0 +1,10 @@
+for i in {10,100,1000,2000,4000}     ### Outer for loop ###
+do
+
+    for (( j = 1 ; j <= i; j++ )) ### Inner for loop ###
+    do
+          echo $(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 10 | head -n 1),$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 100 | head -n 1) >> $i
+    done
+
+  echo "----------" #### print the new line ###
+done

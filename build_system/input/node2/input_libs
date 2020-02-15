@@ -1,0 +1,8 @@
+logs "opaminstalllogs"
+topkg "opaminstalltopkg"
+ocmalfind "opaminstallocmalfind"
+lwt "opaminstalllwt"
+ocplib "opaminstallocplib"
+dune "opaminstalldune"
+mmap "opaminstallmmap"
+uri "opaminstalluri"

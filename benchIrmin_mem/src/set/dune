@@ -1,0 +1,3 @@
+(executable 
+(name set_mem)
+(libraries digestif.c lwt.unix irmin irmin-mem))
