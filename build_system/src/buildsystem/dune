@@ -1,0 +1,4 @@
+(library
+(name buildsystem)
+(libraries irmin irmin-scylla lwt)
+)

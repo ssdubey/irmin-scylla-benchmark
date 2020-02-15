@@ -1,0 +1,4 @@
+(executable 
+(name client)
+(libraries buildsystem)
+(link_flags (-cclib -lstdc++ -cclib -lssl -cclib -lcrypto)))
