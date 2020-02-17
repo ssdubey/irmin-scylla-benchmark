@@ -54,26 +54,30 @@ module Scylla_kvStore = Irmin_scylla.KV(Irmin.Contents.String)
 let rec insIntoStore kvpairlist b_master = 
 match kvpairlist with
 |h::t -> let k, v = h in
+        let stime = Unix.gettimeofday() in
         ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) b_master k v;
-        insIntoStore t b_master
+        let etime = Unix.gettimeofday() in
+        let _ = etime -. stime in 
+        (* print_string "\ntime taken in inserting one key = "; print_float (diff); *)
+        insIntoStore t b_master;
 | _ -> ()
 
 
 (** The function reads the input file, parses the data into key and value, inserts it into the C* store and records the time for db operation. *)
 let _ =
-let path = "/home/shashank/work/createKVPairList_irminscylla/input/keydepth2/10-20-200/2000" in
+let path = "/home/shashank/work/benchmark_irminscylla/input/keydept1/5-10/1000" in
 
 let conf = Irmin_scylla.config "127.0.0.1" in
 Scylla_kvStore.Repo.v conf >>= fun repo ->
 	Scylla_kvStore.master repo >>= fun b_master ->
 
     let kvpairlist = kvpairfun path in
-    let stime = Unix.gettimeofday() in (*ms*)
+    let stime = Unix.gettimeofday() in 
       insIntoStore kvpairlist b_master;
     let etime = Unix.gettimeofday() in
     let diff = etime -. stime in
     
-    print_string "\ntime taken = "; print_float diff;
+    print_string "\ntotal time taken = "; print_float diff; (*time in sec *)
 
     Lwt.return_unit
 	
