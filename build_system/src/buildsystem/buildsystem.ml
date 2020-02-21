@@ -40,7 +40,7 @@ let rec mergeOpr branchList currentBranch repo =
                 mergeOpr t currentBranch repo 
     | _ -> Lwt.return_unit
 
-let rec build liblist public_branch_anchor cbranch_string repo = (*cbranch as in current branch is only used for putting string in db*)
+let rec build liblist public_branch_anchor cbranch_string repo = (*cbranch_string as in current branch is only used for putting string in db*)
     (*merge branches in the db*) 
     Scylla_kvStore.Branch.list repo >>= fun branchList -> 
     ignore @@ mergeOpr branchList public_branch_anchor repo;
