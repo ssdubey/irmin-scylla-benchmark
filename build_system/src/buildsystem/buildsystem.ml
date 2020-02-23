@@ -36,7 +36,20 @@ end
 
 
 module Scylla_kvStore = Irmin_scylla.KV(Distbuild)
-(* 
+
+let rec printmeta valuemeta =
+    match valuemeta with 
+    | h::t -> let ip, ts = h in print_string ("\n IP= " ^ ip); print_string ("  TS= " ^ ts); printmeta t
+    | _ -> ()
+
+let printdetails msg key value = 
+    print_string ("\n msg : " ^ msg);
+    print_string ("  key : " ^ key);
+    print_string ("  value: artifact : " ^ value.artifact ^ "\n metadata: ");
+    printmeta value.metadata;
+    print_string ("  count = "); print_int value.count
+
+    
 let readfile fileloc = 
     let buf = Buffer.create 4096 in
     try
@@ -51,18 +64,18 @@ let readfile fileloc =
         End_of_file -> Buffer.contents buf
 
 let getlib lib public_branch = 
-    Scylla_kvStore.get public_branch [lib] >>= fun item ->
-    print_string ("\njsut after insert " ^ item);
+    Scylla_kvStore.get public_branch [lib] >>= fun _ ->
+    (* print_string ("\njsut after insert " ^ item); *)
     Lwt.return_unit
 
 let find_in_db lib public_branch = 
     try 
-    print_string ("\nlib = " ^ lib);
-    Scylla_kvStore.get public_branch [lib] >>= fun item ->
-    print_string ("\n" ^ item);
+    (* print_string ("\nlib = " ^ lib); *)
+    Scylla_kvStore.get public_branch [lib] >>= fun _ ->
+    (* print_string ("\n" ^ item); *)
     Lwt.return_true
     with 
-    _ -> print_string "\nfailed find in db"; Lwt.return_false
+    _ -> (*print_string "\nfailed find in db";*) Lwt.return_false
 
 let mergeBranches outBranch currentBranch = 
     Scylla_kvStore.merge_into ~info:(fun () -> Irmin.Info.empty) outBranch ~into:currentBranch
@@ -75,7 +88,18 @@ let rec mergeOpr branchList currentBranch repo =
                 mergeOpr t currentBranch repo 
     | _ -> Lwt.return_unit
 
-let rec build liblist public_branch_anchor cbranch_string repo = (*cbranch_string as in current branch is only used for putting string in db*)
+let createValue lib ip =
+    let ts = string_of_float (Unix.gettimeofday ()) in 
+    
+    {artifact = lib; metadata = [(ip, ts)]; count = 1}
+
+let updateValue item ip =
+    let ts = string_of_float (Unix.gettimeofday ()) in
+    let count = item.count + 1 in
+
+    {artifact = item.artifact; metadata = [(ip, ts)]; count = count}
+
+let rec build liblist public_branch_anchor cbranch_string repo ip = (*cbranch_string as in current branch is only used for putting string in db*)
     (*merge branches in the db*) 
     Scylla_kvStore.Branch.list repo >>= fun branchList -> 
     ignore @@ mergeOpr branchList public_branch_anchor repo;
@@ -84,17 +108,24 @@ let rec build liblist public_branch_anchor cbranch_string repo = (*cbranch_strin
     | lib :: libls -> 
         find_in_db lib public_branch_anchor >>= fun boolval -> 
             (match boolval with 
-            | false -> ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                public_branch_anchor [lib] ("downloaded at " ^ cbranch_string ^ "_" ^ lib);
+            | false -> (let v = createValue lib ip in
+                        ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
+                                                public_branch_anchor [lib] v)
                        (* ignore @@ getlib lib public_branch *)
-            | true -> ());
-        build libls public_branch_anchor cbranch_string repo
+            | true -> 
+                ignore (Scylla_kvStore.get public_branch_anchor [lib] >>= fun item ->
+                      let v = updateValue item ip in
+                        Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
+                                                public_branch_anchor [lib] v)); 
+
+        build libls public_branch_anchor cbranch_string repo ip;
+
     | [] -> Lwt.return_unit
 
-let rec printlist lst =
+(* let rec printlist lst =
     match lst with 
-    |h::t -> print_string h; printlist t
-    |_ -> ()
+    |h::t -> (*print_string h;*) printlist t
+    |_ -> () *)
 
 let file_to_liblist liblistpath = 
     let fileContentBuf = readfile (open_in liblistpath) in 
@@ -116,11 +147,11 @@ let buildLibrary ip liblistpath =
     Scylla_kvStore.Repo.v conf >>= fun repo ->
     create_or_get_branch repo ip >>= fun public_branch_anchor ->   
     let liblist = file_to_liblist liblistpath in
-    ignore @@ build liblist public_branch_anchor (ip ^ "_public") repo;
-        
-Lwt.return_unit *)
+    ignore @@ build liblist public_branch_anchor (ip ^ "_public") repo ip;
 
-let rec printmeta valuemeta =
+Lwt.return_unit 
+
+(* let rec printmeta valuemeta =
     match valuemeta with 
     | h::t -> let ip, ts = h in print_string ("\n IP= " ^ ip); print_string ("  TS= " ^ ts); printmeta t
     | _ -> ()
@@ -232,5 +263,5 @@ let testcase2 () =
 
 let main () =
     (* testcase1 (); *)
-    testcase2 ()
+    testcase2 () *)
     
