@@ -47,7 +47,7 @@ let printdetails msg key value =
     print_string ("  key : " ^ key);
     print_string ("  value: artifact : " ^ value.artifact ^ "\n metadata: ");
     printmeta value.metadata;
-    print_string ("  count = "); print_int value.count
+    print_string ("  count = "); print_int value.count; print_string "\n\n"
 
     
 let readfile fileloc = 
@@ -96,8 +96,8 @@ let createValue lib ip =
 let updateValue item ip =
     let ts = string_of_float (Unix.gettimeofday ()) in
     let count = item.count + 1 in
-
-    {artifact = item.artifact; metadata = [(ip, ts)]; count = count}
+    let metadata = (ip, ts) :: item.metadata in
+    {artifact = item.artifact; metadata = metadata; count = count}
 
 let rec build liblist public_branch_anchor cbranch_string repo ip = (*cbranch_string as in current branch is only used for putting string in db*)
     (*merge branches in the db*) 
@@ -110,10 +110,11 @@ let rec build liblist public_branch_anchor cbranch_string repo ip = (*cbranch_st
             (match boolval with 
             | false -> (let v = createValue lib ip in
                         ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                public_branch_anchor [lib] v)
+                                                public_branch_anchor [lib] v);
                        (* ignore @@ getlib lib public_branch *)
             | true -> 
                 ignore (Scylla_kvStore.get public_branch_anchor [lib] >>= fun item ->
+                        printdetails "old data" lib item;
                       let v = updateValue item ip in
                         Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
                                                 public_branch_anchor [lib] v)); 
@@ -134,8 +135,7 @@ let file_to_liblist liblistpath =
 
 let create_or_get_branch repo ip = 
     try
-    Scylla_kvStore.Branch.get repo (ip ^ "_public") >>= fun commit ->
-    Scylla_kvStore.of_commit commit
+    Scylla_kvStore.of_branch repo (ip ^ "_public")
     with _ -> 
     Scylla_kvStore.master repo >>= fun b_master ->
     Scylla_kvStore.clone ~src:b_master ~dst:(ip ^ "_public")
