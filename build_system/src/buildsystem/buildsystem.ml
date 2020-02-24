@@ -82,9 +82,7 @@ let mergeBranches outBranch currentBranch =
 
 let rec mergeOpr branchList currentBranch repo =
     match branchList with 
-    | h::t -> (*Scylla_kvStore.Branch.get repo h >>= fun commit ->
-                Scylla_kvStore.of_commit commit *)
-                Scylla_kvStore.of_branch repo h >>= fun branch ->    
+    | h::t -> Scylla_kvStore.of_branch repo h >>= fun branch ->    
                 ignore @@ mergeBranches branch currentBranch;
                 mergeOpr t currentBranch repo 
     | _ -> Lwt.return_unit
@@ -148,126 +146,7 @@ let buildLibrary ip liblistpath =
     let conf = Irmin_scylla.config ip in
     Scylla_kvStore.Repo.v conf >>= fun repo ->
     create_or_get_branch repo ip >>= fun public_branch_anchor ->   
-    (* ignore liblistpath;
-    ignore @@ testfun public_branch_anchor "dune" "lwt in B"; *)
     let liblist = file_to_liblist liblistpath in
     ignore @@ build liblist public_branch_anchor (ip ^ "_public") repo ip;
 
 Lwt.return_unit 
-
-(* 
-
-let rec printmeta valuemeta =
-    match valuemeta with 
-    | h::t -> let ip, ts = h in print_string ("\n IP= " ^ ip); print_string ("  TS= " ^ ts); printmeta t
-    | _ -> ()
-
-let printdetails msg key value = 
-    print_string ("\n msg : " ^ msg);
-    print_string ("  key : " ^ key);
-    print_string ("  value: artifact : " ^ value.artifact ^ "\n metadata: ");
-    printmeta value.metadata;
-    print_string ("  count = "); print_int value.count
-
-let build_1 = {artifact = "artifact1"; metadata = [("IP1", "TS1")]; count = 1}
-let build_2 = {artifact = "artifact2"; metadata = [("IP1", "TS2")]; count = 1}
-let build_3 = {artifact = "artifact3"; metadata = [("IP1", "TS3")]; count = 1}
-let build_4 = {artifact = "artifact1"; metadata = [("IP2", "TS4")]; count = 1}
-let build_5 = {artifact = "artifact2"; metadata = [("IP2", "TS5")]; count = 1}
-let build_6 = {artifact = "artifact3"; metadata = [("IP2", "TS6")]; count = 1}
-
-let testcase1 () = 
-    let ip = "172.17.0.4" in
-    let conf = Irmin_scylla.config ip in
-    Scylla_kvStore.Repo.v conf >>= fun repo ->
-    Scylla_kvStore.master repo >>= fun b_master ->  
-    Scylla_kvStore.clone ~src:b_master ~dst:(ip ^ "_public") >>= fun public_branch_anchor ->  
-
-
-    ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                b_master ["key1"] build_1;
-
-    Scylla_kvStore.get b_master ["key1"] >>= fun item ->
-    printdetails "after inserting key1 at client1" "key1" item;
-
-    ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                b_master ["key2"] build_2;
-
-    Scylla_kvStore.get b_master ["key2"] >>= fun item ->
-    printdetails "after inserting key2 at client1" "key2" item;
-
-    ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                b_master ["key3"] build_3;
-
-    Scylla_kvStore.get b_master ["key3"] >>= fun item ->
-    printdetails "after inserting key3 at client1" "key3" item;
-
-
-    
-
-    ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                public_branch_anchor ["key1"] build_4;
-
-    Scylla_kvStore.get public_branch_anchor ["key1"] >>= fun item ->
-    printdetails "after inserting key1 at client2" "key1" item;
-
-    ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                public_branch_anchor ["key2"] build_5;
-
-    Scylla_kvStore.get public_branch_anchor ["key2"] >>= fun item ->
-    printdetails "after inserting key2 at client2" "key2" item;
-    
-    ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                public_branch_anchor ["key3"] build_6;
-
-    Scylla_kvStore.get public_branch_anchor ["key3"] >>= fun item ->
-    printdetails "after inserting key3 at client2" "key3" item;
-    
-
-
-    ignore @@ Scylla_kvStore.merge_into ~info:(fun () -> Irmin.Info.empty) public_branch_anchor ~into:b_master; (*~into is always the second argument in the merge function*)
-
-    Scylla_kvStore.get b_master ["key1"] >>= fun item ->
-    printdetails "after merging two branches key1 at client1" "key1" item;
-    
-    Lwt.return_unit
-
-let testcase2 () = 
-    let ip = "172.17.0.4" in
-    let conf = Irmin_scylla.config ip in
-    Scylla_kvStore.Repo.v conf >>= fun repo ->
-    Scylla_kvStore.master repo >>= fun b_master ->  
-    Scylla_kvStore.clone ~src:b_master ~dst:(ip ^ "_public") >>= fun public_branch_anchor ->  
-
-    ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                b_master ["key1"] build_1;
-
-    Scylla_kvStore.get b_master ["key1"] >>= fun item ->
-    printdetails "after inserting key1 at client1" "key1" item;
-
-
-    ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                public_branch_anchor ["key1"] build_4;
-
-    Scylla_kvStore.get public_branch_anchor ["key1"] >>= fun item ->
-    printdetails "after inserting key1 at client2" "key1" item;
-
-
-    ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                b_master ["key1"] build_1;
-
-    Scylla_kvStore.get b_master ["key1"] >>= fun item ->
-    printdetails "after inserting key1 at client1" "key1" item;
-
-
-    ignore @@ Scylla_kvStore.merge_into ~info:(fun () -> Irmin.Info.empty) public_branch_anchor ~into:b_master;
-    
-    Scylla_kvStore.get b_master ["key1"] >>= fun item ->
-    printdetails "after merging two branches key1 at client1" "key1" item;
-
-    Lwt.return_unit
-
-let main () =
-    (* testcase1 (); *)
-    testcase2 ()
-     *)
