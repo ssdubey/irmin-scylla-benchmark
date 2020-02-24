@@ -15,8 +15,11 @@ module Distbuild = struct
         |+ field "count" int (fun t -> t.count)
         |> sealr
 
-  let merge_build ~old x y = 
-    print_string "\nin merge_build";
+  let merge_build ~old x y =
+  ignore old;
+  ignore x;
+  ignore y;
+    (* print_string "\nin merge_build";
     
     let open Irmin.Merge.Infix in
     old () >>=* fun old ->
@@ -27,12 +30,13 @@ module Distbuild = struct
     Printf.printf "\nmetadata entries = %d \nxcount = %d, ycount = %d, oldcount= %d, final= %d" 
                                             (List.length metadata) x.count y.count old.count (x.count + y.count + old.count);
     let count = x.count + y.count + old.count in 
-    Irmin.Merge.ok ({artifact = x.artifact; metadata = metadata; count = count})
+    Irmin.Merge.ok ({artifact = x.artifact; metadata = metadata; count = count}) *)
+
+    Irmin.Merge.ok ({artifact = "dummy"; metadata = [("IP", "TS")]; count = 0})
 
   let merge = Irmin.Merge.(option (v t merge_build))
 
 end
-
 
 
 module Scylla_kvStore = Irmin_scylla.KV(Distbuild)
@@ -58,32 +62,29 @@ let readfile fileloc =
         Buffer.add_string buf line;
         Buffer.add_char buf '\n'
         done;
-        assert false (* This is never executed
-                        (always raise Assert_failure). *)
+        assert false 
     with
         End_of_file -> Buffer.contents buf
 
 let getlib lib public_branch = 
     Scylla_kvStore.get public_branch [lib] >>= fun _ ->
-    (* print_string ("\njsut after insert " ^ item); *)
     Lwt.return_unit
 
 let find_in_db lib public_branch = 
     try 
-    (* print_string ("\nlib = " ^ lib); *)
     Scylla_kvStore.get public_branch [lib] >>= fun _ ->
-    (* print_string ("\n" ^ item); *)
     Lwt.return_true
     with 
-    _ -> (*print_string "\nfailed find in db";*) Lwt.return_false
+    _ -> Lwt.return_false
 
 let mergeBranches outBranch currentBranch = 
     Scylla_kvStore.merge_into ~info:(fun () -> Irmin.Info.empty) outBranch ~into:currentBranch
 
 let rec mergeOpr branchList currentBranch repo =
     match branchList with 
-    | h::t -> Scylla_kvStore.Branch.get repo h >>= fun commit ->
-                Scylla_kvStore.of_commit commit >>= fun branch ->    
+    | h::t -> (*Scylla_kvStore.Branch.get repo h >>= fun commit ->
+                Scylla_kvStore.of_commit commit *)
+                Scylla_kvStore.of_branch repo h >>= fun branch ->    
                 ignore @@ mergeBranches branch currentBranch;
                 mergeOpr t currentBranch repo 
     | _ -> Lwt.return_unit
@@ -100,7 +101,7 @@ let updateValue item ip =
     {artifact = item.artifact; metadata = metadata; count = count}
 
 let rec build liblist public_branch_anchor cbranch_string repo ip = (*cbranch_string as in current branch is only used for putting string in db*)
-    (*merge branches in the db*) 
+    (*merge current branch with the detached head of other*) 
     Scylla_kvStore.Branch.list repo >>= fun branchList -> 
     ignore @@ mergeOpr branchList public_branch_anchor repo;
 
@@ -111,22 +112,20 @@ let rec build liblist public_branch_anchor cbranch_string repo ip = (*cbranch_st
             | false -> (let v = createValue lib ip in
                         ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
                                                 public_branch_anchor [lib] v);
-                       (* ignore @@ getlib lib public_branch *)
             | true -> 
                 ignore (Scylla_kvStore.get public_branch_anchor [lib] >>= fun item ->
                         printdetails "old data" lib item;
                       let v = updateValue item ip in
                         Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                public_branch_anchor [lib] v)); 
+                                                public_branch_anchor [lib] v));
+            
+            ignore (Scylla_kvStore.get public_branch_anchor [lib] >>= fun item ->
+                        printdetails "new data" lib item;
+                        Lwt.return_unit);                                     
 
         build libls public_branch_anchor cbranch_string repo ip;
 
     | [] -> Lwt.return_unit
-
-(* let rec printlist lst =
-    match lst with 
-    |h::t -> (*print_string h;*) printlist t
-    |_ -> () *)
 
 let file_to_liblist liblistpath = 
     let fileContentBuf = readfile (open_in liblistpath) in 
@@ -140,18 +139,25 @@ let create_or_get_branch repo ip =
     Scylla_kvStore.master repo >>= fun b_master ->
     Scylla_kvStore.clone ~src:b_master ~dst:(ip ^ "_public")
 
+let testfun public_branch_anchor lib msg =
+    Scylla_kvStore.get public_branch_anchor [lib] >>= fun item ->
+                        printdetails msg lib item;
+    Lwt.return_unit
+
 let buildLibrary ip liblistpath =
-    (* let ip = "172.17.0.2" in
-    let liblistpath = "/home/shashank/work/benchmark_irminscylla/build_system/input/buildsystem/libreq" in *)
     let conf = Irmin_scylla.config ip in
     Scylla_kvStore.Repo.v conf >>= fun repo ->
     create_or_get_branch repo ip >>= fun public_branch_anchor ->   
+    (* ignore liblistpath;
+    ignore @@ testfun public_branch_anchor "dune" "lwt in B"; *)
     let liblist = file_to_liblist liblistpath in
     ignore @@ build liblist public_branch_anchor (ip ^ "_public") repo ip;
 
 Lwt.return_unit 
 
-(* let rec printmeta valuemeta =
+(* 
+
+let rec printmeta valuemeta =
     match valuemeta with 
     | h::t -> let ip, ts = h in print_string ("\n IP= " ^ ip); print_string ("  TS= " ^ ts); printmeta t
     | _ -> ()
@@ -171,7 +177,7 @@ let build_5 = {artifact = "artifact2"; metadata = [("IP2", "TS5")]; count = 1}
 let build_6 = {artifact = "artifact3"; metadata = [("IP2", "TS6")]; count = 1}
 
 let testcase1 () = 
-    let ip = "127.0.0.1" in
+    let ip = "172.17.0.4" in
     let conf = Irmin_scylla.config ip in
     Scylla_kvStore.Repo.v conf >>= fun repo ->
     Scylla_kvStore.master repo >>= fun b_master ->  
@@ -227,7 +233,7 @@ let testcase1 () =
     Lwt.return_unit
 
 let testcase2 () = 
-    let ip = "127.0.0.1" in
+    let ip = "172.17.0.4" in
     let conf = Irmin_scylla.config ip in
     Scylla_kvStore.Repo.v conf >>= fun repo ->
     Scylla_kvStore.master repo >>= fun b_master ->  
@@ -263,5 +269,5 @@ let testcase2 () =
 
 let main () =
     (* testcase1 (); *)
-    testcase2 () *)
-    
+    testcase2 ()
+     *)
