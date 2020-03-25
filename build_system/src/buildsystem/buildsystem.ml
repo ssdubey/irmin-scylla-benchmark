@@ -34,7 +34,7 @@ module Distbuild = struct
 
     Irmin.Merge.ok ({artifact = "dummy"; metadata = [("IP", "TS")]; count = 0})
 
-  let merge = Irmin.Merge.(option (v t merge_build))
+  let merge = Irmin.Merge.(option (default t))
 
 end
 
@@ -82,10 +82,15 @@ let mergeBranches outBranch currentBranch =
 
 let rec mergeOpr branchList currentBranch repo =
     match branchList with 
-    | h::t -> Scylla_kvStore.of_branch repo h >>= fun branch ->    
+    | h::t -> print_string ("\ncurrent branch to merge: " ^ h);Scylla_kvStore.of_branch repo h >>= fun branch ->    
                 ignore @@ mergeBranches branch currentBranch;
                 mergeOpr t currentBranch repo 
-    | _ -> Lwt.return_unit
+    | _ -> print_string "branch list empty"; Lwt.return_unit
+
+let refresh repo public_branch_anchor =
+    (*merge current branch with the detached head of other*) 
+    Scylla_kvStore.Branch.list repo >>= fun branchList -> 
+    mergeOpr branchList public_branch_anchor repo  (*merge is returning unit*)
 
 let createValue lib ip =
     let ts = string_of_float (Unix.gettimeofday ()) in 
@@ -99,10 +104,6 @@ let updateValue item ip =
     {artifact = item.artifact; metadata = metadata; count = count}
 
 let rec build liblist public_branch_anchor cbranch_string repo ip = (*cbranch_string as in current branch is only used for putting string in db*)
-    (*merge current branch with the detached head of other*) 
-    Scylla_kvStore.Branch.list repo >>= fun branchList -> 
-    ignore @@ mergeOpr branchList public_branch_anchor repo;
-
     match liblist with 
     | lib :: libls -> 
         find_in_db lib public_branch_anchor >>= fun boolval -> 
@@ -147,6 +148,7 @@ let buildLibrary ip liblistpath =
     Scylla_kvStore.Repo.v conf >>= fun repo ->
     create_or_get_branch repo ip >>= fun public_branch_anchor ->   
     let liblist = file_to_liblist liblistpath in
+    refresh repo public_branch_anchor >>= fun () ->
     ignore @@ build liblist public_branch_anchor (ip ^ "_public") repo ip;
 
-Lwt.return_unit 
+    Lwt.return_unit 
