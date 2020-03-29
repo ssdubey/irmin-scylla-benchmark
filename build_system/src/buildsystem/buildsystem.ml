@@ -131,12 +131,19 @@ let file_to_liblist liblistpath =
     let liblist = String.split_on_char('\n') fileContentBuf in
     List.tl (List.rev liblist)
 
-let create_or_get_branch repo ip = 
+let create_or_get_public_branch repo ip = 
     try
     Scylla_kvStore.of_branch repo (ip ^ "_public")
     with _ -> 
     Scylla_kvStore.master repo >>= fun b_master ->
     Scylla_kvStore.clone ~src:b_master ~dst:(ip ^ "_public")
+
+let create_or_get_private_branch repo ip = 
+    try
+    Scylla_kvStore.of_branch repo (ip ^ "_private")
+    with _ -> 
+    Scylla_kvStore.master repo >>= fun b_master ->
+    Scylla_kvStore.clone ~src:b_master ~dst:(ip ^ "_private")
 
 let testfun public_branch_anchor lib msg =
     Scylla_kvStore.get public_branch_anchor [lib] >>= fun item ->
@@ -146,7 +153,8 @@ let testfun public_branch_anchor lib msg =
 let buildLibrary ip liblistpath =
     let conf = Irmin_scylla.config ip in
     Scylla_kvStore.Repo.v conf >>= fun repo ->
-    create_or_get_branch repo ip >>= fun public_branch_anchor ->   
+    create_or_get_public_branch repo ip >>= fun public_branch_anchor -> 
+    create_or_get_private_branch repo ip >>= fun private_branch_anchor ->   
     let liblist = file_to_liblist liblistpath in
     refresh repo public_branch_anchor >>= fun () ->
     ignore @@ build liblist public_branch_anchor (ip ^ "_public") repo ip;
