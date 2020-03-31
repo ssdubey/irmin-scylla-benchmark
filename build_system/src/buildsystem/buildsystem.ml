@@ -66,13 +66,13 @@ let readfile fileloc =
     with
         End_of_file -> Buffer.contents buf
 
-let getlib lib public_branch = 
+(* let getlib lib public_branch = 
     Scylla_kvStore.get public_branch [lib] >>= fun _ ->
-    Lwt.return_unit
+    Lwt.return_unit *)
 
-let find_in_db lib public_branch = 
+let find_in_db lib private_branch = 
     try 
-    Scylla_kvStore.get public_branch [lib] >>= fun _ ->
+    Scylla_kvStore.get private_branch [lib] >>= fun _ ->
     Lwt.return_true
     with 
     _ -> Lwt.return_false
@@ -103,26 +103,26 @@ let updateValue item ip =
     let metadata = (ip, ts) :: item.metadata in
     {artifact = item.artifact; metadata = metadata; count = count}
 
-let rec build liblist public_branch_anchor cbranch_string repo ip = (*cbranch_string as in current branch is only used for putting string in db*)
+let rec build liblist private_branch_anchor cbranch_string repo ip = (*cbranch_string as in current branch is only used for putting string in db*)
     match liblist with 
     | lib :: libls -> 
-        find_in_db lib public_branch_anchor >>= fun boolval -> 
+        find_in_db lib private_branch_anchor >>= fun boolval -> 
             (match boolval with 
             | false -> (let v = createValue lib ip in
                         ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                public_branch_anchor [lib] v);
+                                                private_branch_anchor [lib] v);
             | true -> 
-                ignore (Scylla_kvStore.get public_branch_anchor [lib] >>= fun item ->
+                ignore (Scylla_kvStore.get private_branch_anchor [lib] >>= fun item ->
                         printdetails "old data" lib item;
                       let v = updateValue item ip in
                         Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                public_branch_anchor [lib] v));
+                                                private_branch_anchor [lib] v));
             
-            ignore (Scylla_kvStore.get public_branch_anchor [lib] >>= fun item ->
+            ignore (Scylla_kvStore.get private_branch_anchor [lib] >>= fun item ->
                         printdetails "new data" lib item;
                         Lwt.return_unit);                                     
 
-        build libls public_branch_anchor cbranch_string repo ip;
+        build libls private_branch_anchor cbranch_string repo ip;
 
     | [] -> Lwt.return_unit
 
@@ -150,13 +150,21 @@ let testfun public_branch_anchor lib msg =
                         printdetails msg lib item;
     Lwt.return_unit
 
+let publish private_branch_anchor public_branch_anchor =
+    Scylla_kvStore.merge_into ~info:(fun () -> Irmin.Info.empty) private_branch_anchor ~into:public_branch_anchor
+
 let buildLibrary ip liblistpath =
     let conf = Irmin_scylla.config ip in
     Scylla_kvStore.Repo.v conf >>= fun repo ->
     create_or_get_public_branch repo ip >>= fun public_branch_anchor -> 
     create_or_get_private_branch repo ip >>= fun private_branch_anchor ->   
     let liblist = file_to_liblist liblistpath in
-    refresh repo public_branch_anchor >>= fun () ->
-    ignore @@ build liblist public_branch_anchor (ip ^ "_public") repo ip;
+    (* refresh repo public_branch_anchor >>= fun () -> *)
+    ignore @@ build liblist private_branch_anchor (ip ^ "_private") repo ip;
+
+    ignore @@ publish private_branch_anchor public_branch_anchor;
 
     Lwt.return_unit 
+
+    (**In this code private branch takes up all the updates and then push everything to the public brnach. All the functioning at public branch
+    like refresh is commented. *)
