@@ -160,20 +160,47 @@ let publish_to_public repo ip =
     ignore @@ publish public_branch_anchor (ip ^ "_private");
     Lwt.return_unit 
 
+(* let rec resolve_lwt lst = *)
+    
+
+let squash repo private_branch_str public_branch_str = 
+    Scylla_kvStore.Branch.get repo private_branch_str >>= fun latest_cmt ->
+    let latest_tree = Scylla_kvStore.Commit.tree latest_cmt in
+
+    Scylla_kvStore.Branch.get repo public_branch_str >>= fun old_commit ->
+    Scylla_kvStore.Commit.v repo ~info:(Irmin.Info.empty) ~parents:[Scylla_kvStore.Commit.hash old_commit] latest_tree >>= fun new_commit -> 
+    (* print "%s" (Irmin.Type.to_string (Scylla_kvStore.Commit.t repo) new_commit); *)
+
+    Scylla_kvStore.of_branch repo private_branch_str >>= fun private_branch_anchor ->
+    Scylla_kvStore.Head.set private_branch_anchor new_commit
+
+    (* Lwt.return_unit *)
 
 let buildLibrary ip liblistpath =
     let conf = Irmin_scylla.config ip in
     Scylla_kvStore.Repo.v conf >>= fun repo ->
-     
-    create_or_get_private_branch repo ip >>= fun private_branch_anchor -> 
-
-    let liblist = file_to_liblist liblistpath in
+     ignore liblistpath;
+    (* create_or_get_private_branch repo ip >>= fun private_branch_anchor ->  *)
+    
+    (* let liblist = file_to_liblist liblistpath in *)
     (* refresh repo public_branch_anchor >>= fun () -> *)
-    ignore @@ build liblist private_branch_anchor (ip ^ "_private") repo ip;
+    (* ignore @@ build liblist private_branch_anchor (ip ^ "_private") repo ip; *)
 
-    ignore @@ publish_to_public repo ip;
+    (* ignore @@ publish_to_public repo ip; *)
+
+    ignore @@ squash repo (ip ^ "_private") (ip ^ "_public");
 
     Lwt.return_unit 
 
     (*In this code private branch takes up all the updates and then push everything to the public brnach. All the functioning at public branch
     like refresh is commented. *)
+
+
+(* Squash extra: *)
+    (* let parent_hash_list = Scylla_kvStore.Commit.parents old_commit in  *)
+    (* let parent_commit_option_list = List.map (fun x -> Lwt_main.run (Scylla_kvStore.Commit.of_hash repo x)) parent_hash_list in
+    let parent_commit_list = List.map (fun x -> match x with | Some y -> y | None -> failwith "bad commit") parent_commit_option_list in 
+    let hash_parent_list = List.map (fun x -> Scylla_kvStore.Commit.hash x) parent_commit_list in  *)
+
+    (* Scylla_kvStore.Commit.v repo ~info:(Irmin.Info.empty) ~parents:parent_hash_list latest_tree >>= fun new_commit ->  *)
+    
