@@ -16,25 +16,24 @@ module Distbuild = struct
         |> sealr
 
   let merge_build ~old x y =
-  ignore old;
-  ignore x;
-  ignore y;
-    (* print_string "\nin merge_build";
+    
+    print_string "\nin merge_build";
     
     let open Irmin.Merge.Infix in
     old () >>=* fun old ->
     let old = match old with None -> {artifact = "dummy"; metadata = [("IP", "TS")]; count = 0} | Some o -> o in 
     
     (*not considering the point where artifacts against the same key would be different due to version change, for eg.*)
-    let metadata = x.metadata @ y.metadata in
+    let metadata = x.metadata @ y.metadata in (*delete the duplicates from the list*)
     Printf.printf "\nmetadata entries = %d \nxcount = %d, ycount = %d, oldcount= %d, final= %d" 
-                                            (List.length metadata) x.count y.count old.count (x.count + y.count + old.count);
-    let count = x.count + y.count + old.count in 
-    Irmin.Merge.ok ({artifact = x.artifact; metadata = metadata; count = count}) *)
+                                            (List.length metadata) x.count y.count old.count (x.count + y.count - old.count);
+    let count = x.count + y.count - old.count in 
+    Irmin.Merge.ok ({artifact = x.artifact; metadata = metadata; count = count})
 
-    Irmin.Merge.ok ({artifact = "dummy"; metadata = [("IP", "TS")]; count = 0})
+    (* Irmin.Merge.ok ({artifact = "dummy"; metadata = [("IP", "TS")]; count = 0}) *)
 
-  let merge = Irmin.Merge.(option (default t))
+  (* let merge = Irmin.Merge.(option (default t)) *)
+  let merge = Irmin.Merge.(option (v t merge_build))
 
 end
 
@@ -150,21 +149,31 @@ let testfun public_branch_anchor lib msg =
                         printdetails msg lib item;
     Lwt.return_unit
 
-let publish private_branch_anchor public_branch_anchor =
-    Scylla_kvStore.merge_into ~info:(fun () -> Irmin.Info.empty) private_branch_anchor ~into:public_branch_anchor
+let publish branch1 branch2 = (*changes of branch2 will merge into branch1*)
+    (* Irmin_scylla.gc_meta_fun branch2; branch2 is a string and the branch which is sending its changes. make sure this is alwyas private. *)
+    Scylla_kvStore.merge_with_branch ~info:(fun () -> Irmin.Info.empty) branch1 branch2
+
+(*publishing the changes*)
+let publish_to_public repo ip =
+    create_or_get_public_branch repo ip >>= fun public_branch_anchor ->
+    (*changes of 2nd arg branch will merge into first*)
+    ignore @@ publish public_branch_anchor (ip ^ "_private");
+    Lwt.return_unit 
+
 
 let buildLibrary ip liblistpath =
     let conf = Irmin_scylla.config ip in
     Scylla_kvStore.Repo.v conf >>= fun repo ->
-    create_or_get_public_branch repo ip >>= fun public_branch_anchor -> 
-    create_or_get_private_branch repo ip >>= fun private_branch_anchor ->   
+     
+    create_or_get_private_branch repo ip >>= fun private_branch_anchor -> 
+
     let liblist = file_to_liblist liblistpath in
     (* refresh repo public_branch_anchor >>= fun () -> *)
     ignore @@ build liblist private_branch_anchor (ip ^ "_private") repo ip;
 
-    ignore @@ publish private_branch_anchor public_branch_anchor;
+    ignore @@ publish_to_public repo ip;
 
     Lwt.return_unit 
 
-    (**In this code private branch takes up all the updates and then push everything to the public brnach. All the functioning at public branch
+    (*In this code private branch takes up all the updates and then push everything to the public brnach. All the functioning at public branch
     like refresh is commented. *)
