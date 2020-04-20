@@ -1,0 +1,6 @@
+This folder contains the scripts for generating inputs.
+It will create two files one with the keylist and another with kvpair for get and set purpose.
+
+Nomenclature:
+1l1k => 1level 1KB
+File named 1l1k contains script for generating input with 1 key value pairs with 1 level of key and 1KB (1000B) value There is an outer loop to generate files with as many entries as it is named.

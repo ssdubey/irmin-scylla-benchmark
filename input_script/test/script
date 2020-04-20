@@ -1,0 +1,9 @@
+
+for (( j = 1 ; j <= 10; j++ )) ### Inner for loop ###
+    do
+          a=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 5 | head -n 1)
+          echo $a >> ./../keys
+          echo $a,$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 1000 | head -n 1) >> kv
+    done
+
+  echo "----------" #### print the new line ###

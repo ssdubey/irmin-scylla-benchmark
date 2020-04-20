@@ -1,0 +1,10 @@
+#for i in {10,100,1000,2000,4000}     ### Outer for loop ###
+
+for (( j = 1 ; j <= 10; j++ )) ### Inner for loop ###
+    do
+          a=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 5 | head -n 1)
+          echo $a >> ./../../input/1l1k/keys
+          echo $a,$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 1000 | head -n 1) >> ./../../input/1l1k/kv
+    done
+
+  echo "----------" #### print the new line ###
