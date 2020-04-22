@@ -1,0 +1,127 @@
+# dune exec set_span/set.exe 172.17.0.2,172.17.0.3 /home/shashank/work/benchmark_irminscylla/input/hashing_overhead/5mb/kv --root=.
+# OCAMLPARAM: unset
+# Workspace root: /home/shashank/work/benchmark_irminscylla/script/span_clients
+$ /usr/bin/nproc > /tmp/dune6c657a.output 2> /dev/null
+# Auto-detected concurrency: 8
+# disable binary cache
+$ /home/shashank/.opam/benchmarksw/bin/ocamlc.opt -config > /tmp/dunee2c993.output
+# Dune context:
+#  { name = "default"
+#  ; kind = "default"
+#  ; profile = Dyn
+#  ; merlin = true
+#  ; for_host = None
+#  ; fdo_target_exe = None
+#  ; build_dir = "default"
+#  ;
+#  toplevel_path =
+#    Some External "/home/shashank/.opam/benchmarksw/lib/toplevel"
+#  ; ocaml_bin = External "/home/shashank/.opam/benchmarksw/bin"
+#  ; ocaml = External "/home/shashank/.opam/benchmarksw/bin/ocaml"
+#  ; ocamlc = External "/home/shashank/.opam/benchmarksw/bin/ocamlc.opt"
+#  ;
+#  ocamlopt = Some External "/home/shashank/.opam/benchmarksw/bin/ocamlopt.opt"
+#  ; ocamldep = External "/home/shashank/.opam/benchmarksw/bin/ocamldep.opt"
+#  ;
+#  ocamlmklib = External "/home/shashank/.opam/benchmarksw/bin/ocamlmklib.opt"
+#  ;
+#  env =
+#    map
+#      {
+#      "DUNE_CONFIGURATOR" : "/home/shashank/.opam/benchmarksw/bin/ocamlc.opt"
+#      ; "INSIDE_DUNE" : "1"
+#      ;
+#      "OCAMLFIND_IGNORE_DUPS_IN" :
+#        "/home/shashank/work/benchmark_irminscylla/script/span_clients/_build/install/default/lib"
+#      ;
+#      "OCAMLPATH" :
+#        "/home/shashank/work/benchmark_irminscylla/script/span_clients/_build/install/default/lib"
+#      ; "OCAML_COLOR" : "always"
+#      ; "OPAMCOLOR" : "always"
+#      }
+#  ; findlib_path = [ External "/home/shashank/.opam/benchmarksw/lib" ]
+#  ; arch_sixtyfour = true
+#  ; natdynlink_supported = true
+#  ; supports_shared_libraries = true
+#  ; opam_vars = map {}
+#  ;
+#  ocaml_config =
+#    { version = "4.07.1"
+#    ; standard_library_default = "/home/shashank/.opam/benchmarksw/lib/ocaml"
+#    ; standard_library = "/home/shashank/.opam/benchmarksw/lib/ocaml"
+#    ; standard_runtime = "/home/shashank/.opam/benchmarksw/bin/ocamlrun"
+#    ; ccomp_type = "cc"
+#    ; c_compiler = "gcc"
+#    ; ocamlc_cflags = [ "-O2"; "-fno-strict-aliasing"; "-fwrapv"; "-fPIC" ]
+#    ; ocamlopt_cflags = [ "-O2"; "-fno-strict-aliasing"; "-fwrapv" ]
+#    ;
+#    bytecomp_c_compiler =
+#      [ "gcc"
+#      ; "-O2"
+#      ; "-fno-strict-aliasing"
+#      ; "-fwrapv"
+#      ; "-fPIC"
+#      ; "-D_FILE_OFFSET_BITS=64"
+#      ; "-D_REENTRANT"
+#      ]
+#    ; bytecomp_c_libraries = [ "-lm"; "-ldl"; "-lpthread" ]
+#    ;
+#    native_c_compiler =
+#      [ "gcc"
+#      ; "-O2"
+#      ; "-fno-strict-aliasing"
+#      ; "-fwrapv"
+#      ; "-D_FILE_OFFSET_BITS=64"
+#      ; "-D_REENTRANT"
+#      ]
+#    ; native_c_libraries = [ "-lm"; "-ldl" ]
+#    ; cc_profile = [ "-pg" ]
+#    ; architecture = "amd64"
+#    ; model = "default"
+#    ; int_size = 63
+#    ; word_size = 64
+#    ; system = "linux"
+#    ; asm = [ "as" ]
+#    ; asm_cfi_supported = true
+#    ; with_frame_pointers = false
+#    ; ext_exe = ""
+#    ; ext_obj = ".o"
+#    ; ext_asm = ".s"
+#    ; ext_lib = ".a"
+#    ; ext_dll = ".so"
+#    ; os_type = "Unix"
+#    ; default_executable_name = "a.out"
+#    ; systhread_supported = true
+#    ; host = "x86_64-unknown-linux-gnu"
+#    ; target = "x86_64-unknown-linux-gnu"
+#    ; profiling = true
+#    ; flambda = false
+#    ; spacetime = false
+#    ; safe_string = false
+#    ; exec_magic_number = "Caml1999X023"
+#    ; cmi_magic_number = "Caml1999I024"
+#    ; cmo_magic_number = "Caml1999O023"
+#    ; cma_magic_number = "Caml1999A023"
+#    ; cmx_magic_number = "Caml1999Y023"
+#    ; cmxa_magic_number = "Caml1999Z023"
+#    ; ast_impl_magic_number = "Caml1999M023"
+#    ; ast_intf_magic_number = "Caml1999N023"
+#    ; cmxs_magic_number = "Caml1999D023"
+#    ; cmt_magic_number = "Caml1999T024"
+#    ; natdynlink_supported = true
+#    ; supports_shared_libraries = true
+#    ; windows_unicode = false
+#    }
+#  ;
+#  which =
+#    map
+#      { "ocaml" : Some External "/home/shashank/.opam/benchmarksw/bin/ocaml"
+#      ;
+#      "ocamlc" :
+#        Some External "/home/shashank/.opam/benchmarksw/bin/ocamlc.opt"
+#      ;
+#      "ocamlobjinfo" :
+#        Some External "/home/shashank/.opam/benchmarksw/bin/ocamlobjinfo.opt"
+#      }
+#  }
+# Workspace root: /home/shashank/work/benchmark_irminscylla/script/span_clients
