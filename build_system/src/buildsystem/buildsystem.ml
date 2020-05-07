@@ -91,10 +91,27 @@ let refresh repo public_branch_anchor =
     Scylla_kvStore.Branch.list repo >>= fun branchList -> 
     mergeOpr branchList public_branch_anchor repo  (*merge is returning unit*)
 
-let createValue lib ip =
+let getcontent fileloc =
+        let buf = Buffer.create 4096 in
+try
+        while true do
+        let line = input_line fileloc in
+        Buffer.add_string buf line;
+        Buffer.add_char buf '\n'
+        done;
+        assert false
+with
+        End_of_file -> Buffer.contents buf
+
+let createValue lib ip liblistpath =
     let ts = string_of_float (Unix.gettimeofday ()) in 
     
-    {artifact = lib; metadata = [(ip, ts)]; count = 1}
+    let fileContentBuf = getcontent (open_in (liblistpath ^ lib ^ "_data")) in
+        (*let liblist = String.split_on_char('\n') fileContentBuf in
+        List.tl (List.rev liblist)*)
+
+    (*let libcontent = getcontent liblistpath in *)
+    {artifact = fileContentBuf; metadata = [(ip, ts)]; count = 1}
 
 let updateValue item ip =
     let ts = string_of_float (Unix.gettimeofday ()) in
@@ -102,12 +119,12 @@ let updateValue item ip =
     let metadata = (ip, ts) :: item.metadata in
     {artifact = item.artifact; metadata = metadata; count = count}
 
-let rec build liblist private_branch_anchor cbranch_string repo ip = (*cbranch_string as in current branch is only used for putting string in db*)
+let rec build liblist private_branch_anchor cbranch_string repo ip liblistpath = (*cbranch_string as in current branch is only used for putting string in db*)
     match liblist with 
     | lib :: libls -> 
         find_in_db lib private_branch_anchor >>= fun boolval -> 
             (match boolval with 
-            | false -> (let v = createValue lib ip in
+            | false -> (let v = createValue lib ip liblistpath in
                         ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
                                                 private_branch_anchor [lib] v);
             | true -> 
@@ -121,7 +138,7 @@ let rec build liblist private_branch_anchor cbranch_string repo ip = (*cbranch_s
                         printdetails "new data" lib item;
                         Lwt.return_unit);                                     
 
-        build libls private_branch_anchor cbranch_string repo ip;
+        build libls private_branch_anchor cbranch_string repo ip liblistpath;
 
     | [] -> Lwt.return_unit
 
@@ -179,16 +196,16 @@ let squash repo private_branch_str public_branch_str =
 let buildLibrary ip liblistpath =
     let conf = Irmin_scylla.config ip in
     Scylla_kvStore.Repo.v conf >>= fun repo ->
-     ignore liblistpath;
-    (* create_or_get_private_branch repo ip >>= fun private_branch_anchor ->  *)
+    (* ignore liblistpath;*)
+    create_or_get_private_branch repo ip >>= fun private_branch_anchor ->
     
-    (* let liblist = file_to_liblist liblistpath in *)
+    let liblist = file_to_liblist (liblistpath ^ "libreq2")in
     (* refresh repo public_branch_anchor >>= fun () -> *)
-    (* ignore @@ build liblist private_branch_anchor (ip ^ "_private") repo ip; *)
+    ignore @@ build liblist private_branch_anchor (ip ^ "_private") repo ip liblistpath;
 
     (* ignore @@ publish_to_public repo ip; *)
 
-    ignore @@ squash repo (ip ^ "_private") (ip ^ "_public");
+    (*ignore @@ squash repo (ip ^ "_private") (ip ^ "_public");*)
 
     Lwt.return_unit 
 
