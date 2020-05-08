@@ -71,7 +71,10 @@ let readfile fileloc =
 
 let find_in_db lib private_branch = 
     try 
+    let stime = Unix.gettimeofday () in 
     Scylla_kvStore.get private_branch [lib] >>= fun _ ->
+    let etime = Unix.gettimeofday () in
+    Printf.printf "\n%f" (etime -. stime);
     Lwt.return_true
     with 
     _ -> Lwt.return_false
@@ -119,24 +122,49 @@ let updateValue item ip =
     let metadata = (ip, ts) :: item.metadata in
     {artifact = item.artifact; metadata = metadata; count = count}
 
+
 let rec build liblist private_branch_anchor cbranch_string repo ip liblistpath = (*cbranch_string as in current branch is only used for putting string in db*)
     match liblist with 
     | lib :: libls -> 
         find_in_db lib private_branch_anchor >>= fun boolval -> 
             (match boolval with 
             | false -> (let v = createValue lib ip liblistpath in
+                        let stime = Unix.gettimeofday() in
+                        
                         ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                private_branch_anchor [lib] v);
+                                                private_branch_anchor [lib] v;
+                        
+                        let etime = Unix.gettimeofday() in
+                        let diff = etime -. stime in
+                        (* print_string "\ntime taken in inserting one key = ";  *)
+Printf.printf "\n%f" diff;)
+                        (*print_float (diff);*)
+
             | true -> 
-                ignore (Scylla_kvStore.get private_branch_anchor [lib] >>= fun item ->
-                        printdetails "old data" lib item;
-                      let v = updateValue item ip in
-                        Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-                                                private_branch_anchor [lib] v));
-            
-            ignore (Scylla_kvStore.get private_branch_anchor [lib] >>= fun item ->
+                        let stime = Unix.gettimeofday() in
+
+                        ignore (Scylla_kvStore.get private_branch_anchor [lib] >>= fun item ->
+                        (* let item = Lwt_main.run (Scylla_kvStore.get private_branch_anchor [lib]) in  *)
+                        (* let etime = Unix.gettimeofday() in
+                        let diff1 = etime -. stime in *)
+
+
+                        (*printdetails "old data" lib item;*)
+                        let v = updateValue item ip in
+
+                        (* let stime = Unix.gettimeofday() in *)
+                        
+                        ignore (Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
+                                                    private_branch_anchor [lib] v);
+                        let etime = Unix.gettimeofday() in
+                        let diff2 = etime -. stime in
+                        Printf.printf "\n%f" diff2; Lwt.return_unit));
+(* (diff1 +. diff2)) in *)
+(* Printf.printf"\n%f" elapse; *)
+
+            (*ignore (Scylla_kvStore.get private_branch_anchor [lib] >>= fun item ->
                         printdetails "new data" lib item;
-                        Lwt.return_unit);                                     
+                        Lwt.return_unit);*)                                     
 
         build libls private_branch_anchor cbranch_string repo ip liblistpath;
 
@@ -193,13 +221,13 @@ let squash repo private_branch_str public_branch_str =
 
     (* Lwt.return_unit *)
 
-let buildLibrary ip liblistpath =
+let buildLibrary ip liblistpath libindex =
     let conf = Irmin_scylla.config ip in
     Scylla_kvStore.Repo.v conf >>= fun repo ->
     (* ignore liblistpath;*)
     create_or_get_private_branch repo ip >>= fun private_branch_anchor ->
     
-    let liblist = file_to_liblist (liblistpath ^ "libreq2")in
+    let liblist = file_to_liblist (liblistpath ^ libindex)in
     (* refresh repo public_branch_anchor >>= fun () -> *)
     ignore @@ build liblist private_branch_anchor (ip ^ "_private") repo ip liblistpath;
 
@@ -208,6 +236,17 @@ let buildLibrary ip liblistpath =
     (*ignore @@ squash repo (ip ^ "_private") (ip ^ "_public");*)
 
     Lwt.return_unit 
+
+
+let _ =
+        let hostip = Sys.argv.(1) in
+        let libpath = Sys.argv.(2) in
+        let libindex = Sys.argv.(3) in 
+        (*let ip = "127.0.0.1" in
+        let liblistpath = "/home/shashank/work/benchmark_irminscylla/build_system/input/buildsystem/" in
+        Buildsystem.buildLibrary ip liblistpath*)
+
+        buildLibrary hostip libpath libindex
 
     (*In this code private branch takes up all the updates and then push everything to the public brnach. All the functioning at public branch
     like refresh is commented. *)
