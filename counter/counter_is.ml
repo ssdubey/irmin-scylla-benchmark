@@ -68,8 +68,6 @@ let rec build liblist private_branch_anchor cbranch_string repo ip = (*cbranch_s
             | true -> 
             getvalue private_branch_anchor lib;
             ());
-            
-            (* ()       );                              *)
 
         build libls private_branch_anchor cbranch_string repo ip;
 
@@ -86,29 +84,6 @@ let readfile fileloc =
         assert false 
     with
         End_of_file -> Buffer.contents buf
-
-(*taking key from file*)
-(* let file_to_liblist liblistpath = 
-    let fileContentBuf = readfile (open_in liblistpath) in 
-    let liblist = String.split_on_char('\n') fileContentBuf in
-    List.tl (List.rev liblist) *)
-
-(*generating random key for len length*)
-(* let rand_chr () = (Char.chr (97 + (Random.int 26)));;
-
-let rec gen len str = 
-    if len > 0 then 
-        (let str = str ^ (String.make 1 (rand_chr ())) in
-        gen (len - 1) str)
-    else
-        str *)
-
-(*generate count keys of given len*)
-(* let rec generatekey len count = 
-    if (count>0) then(
-        (gen len "") :: generatekey len (count-1))
-    else    
-        [] *)
 
 (*generating key of 2B *)
 let gen () = 
@@ -138,7 +113,6 @@ let create_or_get_public_branch repo ip =
     Scylla_kvStore.clone ~src:b_master ~dst:(ip ^ "_public")
 
 let publish branch1 branch2 = (*changes of branch2 will merge into branch1*)
-    (* Irmin_scylla.gc_meta_fun branch2; branch2 is a string and the branch which is sending its changes. make sure this is alwyas private. *)
     Scylla_kvStore.merge_with_branch ~info:(fun () -> Irmin.Info.empty) branch1 branch2
 
 let publish_to_public repo ip =
@@ -163,16 +137,9 @@ let operate_help opr_load private_branch_anchor repo client total_opr_load flag 
 
     ignore @@ publish_to_public repo client;
 
-    (* refresh repo client >>= fun () -> *)
     ignore @@ refresh repo client
 
 let rec operate opr_load private_branch_anchor repo client total_opr_load flag done_opr =
-    (* let new_opr_load = 
-        if (2*opr_load > total_opr_load) then 
-            total_opr_load 
-        else
-            (2*opr_load) - opr_load 
-    in *)
     
     operate_help opr_load private_branch_anchor repo client total_opr_load flag;
         
@@ -196,27 +163,11 @@ let buildLibrary ip client total_opr_load =
     
     create_or_get_private_branch repo client >>= fun private_branch_anchor ->
     
-    (* let liblist = file_to_liblist (liblistpath ^ libindex) in  *)
-    (* let liblist = generatekey 16 10 in  (*len count *)
-    print_string (List.hd liblist); *)
-
     (*running loop to execute operation in (2^x) count. For each loop fresh set of keys will be generated*)
     let opr_load = 2 in 
     let done_opr = 2 in
     operate opr_load private_branch_anchor repo client total_opr_load true done_opr;
     
-    (* let keylist = generatekey opr_load in
-
-    ignore @@ build keylist private_branch_anchor (client ^ "_private") repo client;
-
-    ignore @@ publish_to_public repo client;
-
-    (* refresh repo client >>= fun () -> *)
-    ignore @@ refresh repo client; *)
-
-     
-    (*ignore @@ squash repo (client ^ "_private") (client ^ "_public");*)
-
     Lwt.return_unit 
 
 
