@@ -30,13 +30,15 @@ let mergeBranches outBranch currentBranch opr_meta =
 
         Lwt.return_unit
 
-let rec mergeOpr branchList currentBranch repo opr_meta =
+let rec mergeOpr branchList currentBranch currentBranch_string repo opr_meta =
     match branchList with 
-    | h::t -> (*print_string ("\ncurrent branch to merge: " ^ h);*)
+    | h::t -> Printf.printf "\ncurrent branch to merge: '%s'  currentbranch_string: '%s'" h currentBranch_string;
+            if (currentBranch_string <> h) then (  
+                Printf.printf "\nnot same branch";
                 Scylla_kvStore.of_branch repo h >>= fun branch -> 
-                if (currentBranch != branch) then (   
+                 
                     ignore @@ mergeBranches branch currentBranch opr_meta;
-                    mergeOpr t currentBranch repo opr_meta)
+                    mergeOpr t currentBranch currentBranch_string repo opr_meta)
                     else
                     Lwt.return_unit
     | _ -> (*print_string "branch list empty";*) 
@@ -143,8 +145,8 @@ let refresh repo client refresh_meta =
     Scylla_kvStore.Branch.list repo >>= fun branchList -> 
     let branchList = filter_public branchList in
     List.iter (fun x -> print_string x) branchList;
-    
-    mergeOpr branchList public_branch_anchor repo refresh_meta  (*merge is returning unit*)
+
+    mergeOpr branchList public_branch_anchor (client ^ "_public") repo refresh_meta  (*merge is returning unit*)
 
     (* create_or_get_private_branch repo client >>= fun private_branch_anchor ->
     mergeBranches public_branch_anchor private_branch_anchor refresh_meta                                                                                                  *)
@@ -211,7 +213,7 @@ let rec operate opr_load private_branch_anchor repo client total_opr_load flag d
     if flag=true then (*flag denotes if it is a last round of operation or not. true = more rounds are there, false = no more rounds*)
         let loop_count = loop_count + 1 in
         operate new_opr_load private_branch_anchor repo client total_opr_load flag done_opr set_meta get_meta publish_meta refresh_meta loop_count
-    else  (
+    else  if new_opr_load != 0 then(
         let rw_load = new_opr_load/2 in
         Random.init (1); (*so that each client get the same read keylist*)
         let read_keylist = gen_read_key_list rw_load in
