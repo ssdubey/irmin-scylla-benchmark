@@ -93,15 +93,15 @@ let readfile fileloc =
         End_of_file -> Buffer.contents buf
 
 (*generating key of 2B *)
-let gen () = 
+let gen_write_key () = 
     let str = [|"1";"2";"3";"4";"5";"6";"7";"8";"9";"0";"a";"b";"c";"d";"e";"f";"g";"h";"i";"j";|] in
-    let key = (Array.get str (Random.int 2))^(Array.get str (Random.int 2)) in
+    let key = (Array.get str (Random.int 20))^(Array.get str (Random.int 20)) in
     key
     
 (*generating 2B random key from limited keyspace*)
-let rec generatekey count = 
+let rec generate_write_key_list count = 
     if (count>0) then (
-        gen () :: generatekey (count -1) )
+        gen_write_key () :: generate_write_key_list (count -1) )
     else
         []
     
@@ -141,9 +141,9 @@ let refresh repo client merge_count =
     mergeBranches public_branch_anchor private_branch_anchor merge_count                                                                                                 
 
 let post_operate_help opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count read_keylist =
-    let keylist = read_keylist @ generatekey opr_load in (*generatekey is generating key for write operation*)
+    Printf.printf "\nPost: client %s:" client;
+    let keylist = read_keylist @ generate_write_key_list opr_load in (*generate_write_key_list is generating key for write operation*)
 
-    Printf.printf "\nclient %s:" client;
     List.iter (fun key -> Printf.printf "%s " key) keylist;
 
     ignore @@ build keylist private_branch_anchor (client ^ "_private") repo client set_count get_count;
@@ -154,8 +154,8 @@ let post_operate_help opr_load private_branch_anchor repo client total_opr_load 
 
 
 let pre_operate_help opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count keylist=
-    (* let keylist = generatekey opr_load in *)
-    Printf.printf "\nclient %s:" client;
+    (* let keylist = generate_write_key_list opr_load in *)
+    Printf.printf "\nPre: client %s:" client;
     List.iter (fun key -> Printf.printf "%s " key) keylist;
 
     ignore @@ build keylist private_branch_anchor (client ^ "_private") repo client set_count get_count
@@ -172,7 +172,7 @@ let rec gen_read_key_list count =
     )else
     []
 
-let rec operate opr_load private_branch_anchor repo client total_opr_load flag done_opr set_count get_count merge_count =
+let rec operate opr_load private_branch_anchor repo client total_opr_load flag done_opr set_count get_count merge_count loop_count =
     
     let rw_load = opr_load/2 in
     Random.init (1); (*so that each client get the same read keylist*)
@@ -180,7 +180,7 @@ let rec operate opr_load private_branch_anchor repo client total_opr_load flag d
     let read_keylist = gen_read_key_list rw_load in
     pre_operate_help rw_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count read_keylist; 
 
-    Random.init (Unix.getpid ());
+    Random.init ((Unix.getpid ()) + loop_count);
     post_operate_help rw_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count read_keylist;
         
     let new_opr_load, flag = 
@@ -193,14 +193,16 @@ let rec operate opr_load private_branch_anchor repo client total_opr_load flag d
     let done_opr = done_opr + new_opr_load in
 
     if flag=true then (*flag denotes if it is a last round of operation or not. true = more rounds are there, false = no more rounds*)
-        operate new_opr_load private_branch_anchor repo client total_opr_load flag done_opr set_count get_count merge_count
+        let loop_count = loop_count + 1 in
+        operate new_opr_load private_branch_anchor repo client total_opr_load flag done_opr set_count get_count merge_count loop_count
     else  (
         let rw_load = opr_load/2 in
         Random.init (1); (*so that each client get the same read keylist*)
         let read_keylist = gen_read_key_list rw_load in
         pre_operate_help rw_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count read_keylist; 
 
-        Random.init (Unix.getpid ());
+        let loop_count = loop_count + 1 in
+        Random.init ((Unix.getpid ()) + loop_count);
         post_operate_help rw_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count read_keylist
     
     )  
@@ -215,7 +217,7 @@ let buildLibrary ip client total_opr_load set_count get_count merge_count =
     (*running loop to execute operation in (2^x) count. For each loop fresh set of keys will be generated*)
     let opr_load = 2 in 
     let done_opr = 2 in
-    operate opr_load private_branch_anchor repo client total_opr_load true done_opr set_count get_count merge_count;
+    operate opr_load private_branch_anchor repo client total_opr_load true done_opr set_count get_count merge_count 0;
     
     Lwt.return_unit 
 
