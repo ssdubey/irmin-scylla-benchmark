@@ -157,12 +157,12 @@ let post_operate_help opr_load private_branch_anchor repo client total_opr_load 
     ignore @@ refresh repo client merge_count
 
 
-let pre_operate_help opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count keylist=
+let pre_operate_help opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count keylist =
     (* let keylist = generate_write_key_list opr_load in *)
     Printf.printf "\nPre: client %s:" client;
     List.iter (fun key -> Printf.printf "%s " key) keylist;
 
-    ignore @@ build keylist private_branch_anchor repo client set_count get_count
+    ignore @@ build keylist private_branch_anchor repo client set_count get_count "write"
 
 let gen_read_key () = 
     let str = [|"k";"l";"m";"n";"o";"p";"q";"r";"s";"t";"u";"v";"w";"x";"y";"z";"A";"B";"C";"D";|] in
