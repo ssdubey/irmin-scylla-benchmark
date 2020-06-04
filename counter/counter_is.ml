@@ -49,12 +49,13 @@ let getvalue private_branch_anchor lib client=
     Scylla_kvStore.get private_branch_anchor [lib] >>= fun item -> Printf.printf "\nclient= %s  key=%s  value=%d\n" client lib (Int64.to_int item); 
     Lwt.return_unit
 
-let rec build liblist private_branch_anchor cbranch_string repo client set_count get_count = (*cbranch_string as in current branch is only used for putting string in db*)
+let rec build liblist private_branch_anchor repo client set_count get_count rw = (*cbranch_string as in current branch is only used for putting string in db*)
     match liblist with 
     | lib :: libls -> 
-        find_in_db lib private_branch_anchor >>= fun boolval -> 
-            (match boolval with 
-            | false -> (let v = createValue () in
+        (* find_in_db lib private_branch_anchor >>= fun boolval ->  *)
+             
+        (match rw with 
+            | "write" -> (let v = createValue () in
                         let stime = Unix.gettimeofday() in
                         
                         set_count := !set_count + 1;
@@ -72,11 +73,11 @@ let rec build liblist private_branch_anchor cbranch_string repo client set_count
                         Printf.printf "\nfalse_setting: %f" diff;)
                         (*print_float (diff);*)
 
-            | true -> get_count := !get_count + 1;
+            | "read" -> get_count := !get_count + 1;
                 getvalue private_branch_anchor lib client;
                 ());
 
-        build libls private_branch_anchor cbranch_string repo client set_count get_count;
+        build libls private_branch_anchor repo client set_count get_count rw;
 
     | [] -> Lwt.return_unit
 
@@ -95,7 +96,7 @@ let readfile fileloc =
 (*generating key of 2B *)
 let gen_write_key () = 
     let str = [|"1";"2";"3";"4";"5";"6";"7";"8";"9";"0";"a";"b";"c";"d";"e";"f";"g";"h";"i";"j";|] in
-    let key = (Array.get str (Random.int 20))^(Array.get str (Random.int 20)) in
+    let key = (Array.get str (Random.int 2))^(Array.get str (Random.int 2)) in
     key
     
 (*generating 2B random key from limited keyspace*)
@@ -142,11 +143,14 @@ let refresh repo client merge_count =
 
 let post_operate_help opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count read_keylist =
     Printf.printf "\nPost: client %s:" client;
-    let keylist = read_keylist @ generate_write_key_list opr_load in (*generate_write_key_list is generating key for write operation*)
+    let write_keylist = generate_write_key_list opr_load in (*generate_write_key_list is generating key for write operation*)
 
-    List.iter (fun key -> Printf.printf "%s " key) keylist;
+    List.iter (fun key -> Printf.printf "%s " key) read_keylist;
+    List.iter (fun key -> Printf.printf "%s " key) write_keylist;
 
-    ignore @@ build keylist private_branch_anchor (client ^ "_private") repo client set_count get_count;
+    ignore @@ build read_keylist private_branch_anchor repo client set_count get_count "read";
+
+    ignore @@ build write_keylist private_branch_anchor repo client set_count get_count "write";
 
     ignore @@ publish_to_public repo client;
 
@@ -158,7 +162,7 @@ let pre_operate_help opr_load private_branch_anchor repo client total_opr_load f
     Printf.printf "\nPre: client %s:" client;
     List.iter (fun key -> Printf.printf "%s " key) keylist;
 
-    ignore @@ build keylist private_branch_anchor (client ^ "_private") repo client set_count get_count
+    ignore @@ build keylist private_branch_anchor repo client set_count get_count
 
 let gen_read_key () = 
     let str = [|"k";"l";"m";"n";"o";"p";"q";"r";"s";"t";"u";"v";"w";"x";"y";"z";"A";"B";"C";"D";|] in
@@ -196,7 +200,7 @@ let rec operate opr_load private_branch_anchor repo client total_opr_load flag d
         let loop_count = loop_count + 1 in
         operate new_opr_load private_branch_anchor repo client total_opr_load flag done_opr set_count get_count merge_count loop_count
     else  (
-        let rw_load = opr_load/2 in
+        let rw_load = new_opr_load/2 in
         Random.init (1); (*so that each client get the same read keylist*)
         let read_keylist = gen_read_key_list rw_load in
         pre_operate_help rw_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count read_keylist; 
