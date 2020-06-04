@@ -11,41 +11,45 @@ module Counter: Irmin.Contents.S with type t = int64 = struct
         let (+) = Int64.add and (-) = Int64.sub in
         a + b - old
         
-        let merge = print_string "\nmerge fun called";Irmin.Merge.(option (v t merge))
+        let merge = Irmin.Merge.(option (v t merge))
 end
 
-let merge = Irmin.Merge.(option counter)
+(* let merge = Irmin.Merge.(option counter) *)
 
 
 module Scylla_kvStore = Irmin_scylla.KV(Counter)
 
-let mergeBranches outBranch currentBranch = 
+let mergeBranches outBranch currentBranch merge_count= 
+    merge_count := !merge_count + 1;
     Scylla_kvStore.merge_into ~info:(fun () -> Irmin.Info.empty) outBranch ~into:currentBranch
 
-let rec mergeOpr branchList currentBranch repo =
+let rec mergeOpr branchList currentBranch repo merge_count =
     match branchList with 
-    | h::t -> print_string ("\ncurrent branch to merge: " ^ h);Scylla_kvStore.of_branch repo h >>= fun branch ->    
-                ignore @@ mergeBranches branch currentBranch;
-                mergeOpr t currentBranch repo 
-    | _ -> print_string "branch list empty"; Lwt.return_unit
+    | h::t -> (*print_string ("\ncurrent branch to merge: " ^ h);*)
+                Scylla_kvStore.of_branch repo h >>= fun branch ->    
+                ignore @@ mergeBranches branch currentBranch merge_count;
+                mergeOpr t currentBranch repo merge_count
+    | _ -> (*print_string "branch list empty";*) 
+        Lwt.return_unit
 
 let createValue () =
-    Int64.of_int 1
+    Int64.of_int (Random.int 10)
 
 let find_in_db lib private_branch = 
     try 
     let stime = Unix.gettimeofday () in 
     Scylla_kvStore.get private_branch [lib] >>= fun _ ->
     let etime = Unix.gettimeofday () in
-    Printf.printf "\nfind_in_db: %f" (etime -. stime);
+    Printf.printf "\n\nfind_in_db: %f" (etime -. stime);
     Lwt.return_true
     with 
     _ -> Lwt.return_false
 
-let getvalue private_branch_anchor lib =
-    Scylla_kvStore.get private_branch_anchor [lib] >>= fun item -> Printf.printf "\nkey=%s  value=%d" lib (Int64.to_int item); Lwt.return_unit
+let getvalue private_branch_anchor lib client=
+    Scylla_kvStore.get private_branch_anchor [lib] >>= fun item -> Printf.printf "\nclient= %s  key=%s  value=%d\n" client lib (Int64.to_int item); 
+    Lwt.return_unit
 
-let rec build liblist private_branch_anchor cbranch_string repo ip = (*cbranch_string as in current branch is only used for putting string in db*)
+let rec build liblist private_branch_anchor cbranch_string repo client set_count get_count = (*cbranch_string as in current branch is only used for putting string in db*)
     match liblist with 
     | lib :: libls -> 
         find_in_db lib private_branch_anchor >>= fun boolval -> 
@@ -53,23 +57,26 @@ let rec build liblist private_branch_anchor cbranch_string repo ip = (*cbranch_s
             | false -> (let v = createValue () in
                         let stime = Unix.gettimeofday() in
                         
+                        set_count := !set_count + 1;
+
                         ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
                                                 private_branch_anchor [lib] v;
                         
-                        getvalue private_branch_anchor lib;
+                        
                         
                         let etime = Unix.gettimeofday() in
                         let diff = etime -. stime in
                         (* print_string "\ntime taken in inserting one key = ";  *)
                         (* getvalue private_branch_anchor lib; *)
+                        getvalue private_branch_anchor lib client;
                         Printf.printf "\nfalse_setting: %f" diff;)
                         (*print_float (diff);*)
 
-            | true -> 
-            getvalue private_branch_anchor lib;
-            ());
+            | true -> get_count := !get_count + 1;
+                getvalue private_branch_anchor lib client;
+                ());
 
-        build libls private_branch_anchor cbranch_string repo ip;
+        build libls private_branch_anchor cbranch_string repo client set_count get_count;
 
     | [] -> Lwt.return_unit
 
@@ -100,8 +107,9 @@ let rec generatekey count =
     
 let create_or_get_private_branch repo ip = 
     try
-    Scylla_kvStore.of_branch repo (ip ^ "_private")
+    Scylla_kvStore.of_branch repo (ip ^ "_private") (*this should never fail*)
     with _ -> 
+    Printf.printf "\nget private branch failed which is an error...";
     Scylla_kvStore.master repo >>= fun b_master ->
     Scylla_kvStore.clone ~src:b_master ~dst:(ip ^ "_private")
 
@@ -115,33 +123,37 @@ let create_or_get_public_branch repo ip =
 let publish branch1 branch2 = (*changes of branch2 will merge into branch1*)
     Scylla_kvStore.merge_with_branch ~info:(fun () -> Irmin.Info.empty) branch1 branch2
 
-let publish_to_public repo ip =
+let publish_to_public repo ip = 
+    Printf.printf "\npublishing...";
     create_or_get_public_branch repo ip >>= fun public_branch_anchor ->
     (*changes of 2nd arg branch will merge into first*)
     ignore @@ publish public_branch_anchor (ip ^ "_private");
     Lwt.return_unit 
 
-let refresh repo client =
+let refresh repo client merge_count =
+    Printf.printf "\nrefreshing...";
     (*merge current branch with the detached head of other*) 
     create_or_get_public_branch repo client >>= fun public_branch_anchor ->
     Scylla_kvStore.Branch.list repo >>= fun branchList -> 
-    mergeOpr branchList public_branch_anchor repo;  (*merge is returning unit*)
+    mergeOpr branchList public_branch_anchor repo merge_count;  (*merge is returning unit*)
 
     create_or_get_private_branch repo client >>= fun private_branch_anchor ->
-    mergeBranches public_branch_anchor private_branch_anchor                                                                                                  
+    mergeBranches public_branch_anchor private_branch_anchor merge_count                                                                                                 
 
-let operate_help opr_load private_branch_anchor repo client total_opr_load flag =
+let operate_help opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count =
     let keylist = generatekey opr_load in
+    Printf.printf "\nclient %s:" client;
+    List.iter (fun key -> Printf.printf "%s " key) keylist;
 
-    ignore @@ build keylist private_branch_anchor (client ^ "_private") repo client;
+    ignore @@ build keylist private_branch_anchor (client ^ "_private") repo client set_count get_count;
 
     ignore @@ publish_to_public repo client;
 
-    ignore @@ refresh repo client
+    ignore @@ refresh repo client merge_count
 
-let rec operate opr_load private_branch_anchor repo client total_opr_load flag done_opr =
+let rec operate opr_load private_branch_anchor repo client total_opr_load flag done_opr set_count get_count merge_count=
     
-    operate_help opr_load private_branch_anchor repo client total_opr_load flag;
+    operate_help opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count;
         
     let new_opr_load, flag = 
     if (done_opr + (2 * opr_load)) < total_opr_load then
@@ -153,11 +165,11 @@ let rec operate opr_load private_branch_anchor repo client total_opr_load flag d
     let done_opr = done_opr + new_opr_load in
 
     if flag=true then
-        operate new_opr_load private_branch_anchor repo client total_opr_load flag done_opr
+        operate new_opr_load private_branch_anchor repo client total_opr_load flag done_opr set_count get_count merge_count
     else    
-        operate_help new_opr_load private_branch_anchor repo client total_opr_load flag
+        operate_help new_opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count
 
-let buildLibrary ip client total_opr_load =
+let buildLibrary ip client total_opr_load set_count get_count merge_count =
     let conf = Irmin_scylla.config ip in
     Scylla_kvStore.Repo.v conf >>= fun repo ->
     
@@ -166,7 +178,7 @@ let buildLibrary ip client total_opr_load =
     (*running loop to execute operation in (2^x) count. For each loop fresh set of keys will be generated*)
     let opr_load = 2 in 
     let done_opr = 2 in
-    operate opr_load private_branch_anchor repo client total_opr_load true done_opr;
+    operate opr_load private_branch_anchor repo client total_opr_load true done_opr set_count get_count merge_count;
     
     Lwt.return_unit 
 
@@ -178,6 +190,13 @@ let _ =
         
         Random.init (Unix.getpid ());
 
-        buildLibrary hostip client (int_of_string total_opr_load)
+        let set_count = ref 0 in 
+        let get_count = ref 0 in 
+        let merge_count = ref 0 in 
+
+        
+        buildLibrary hostip client (int_of_string total_opr_load) set_count get_count merge_count;
+
+        Printf.printf "\n\nset_count = %d  get_count = %d  merge_count = %d" !set_count !get_count !merge_count
 
    
