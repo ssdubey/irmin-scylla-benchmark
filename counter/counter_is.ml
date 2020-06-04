@@ -140,8 +140,9 @@ let refresh repo client merge_count =
     create_or_get_private_branch repo client >>= fun private_branch_anchor ->
     mergeBranches public_branch_anchor private_branch_anchor merge_count                                                                                                 
 
-let operate_help opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count =
-    let keylist = generatekey opr_load in
+let post_operate_help opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count read_keylist =
+    let keylist = read_keylist @ generatekey opr_load in (*generatekey is generating key for write operation*)
+
     Printf.printf "\nclient %s:" client;
     List.iter (fun key -> Printf.printf "%s " key) keylist;
 
@@ -151,9 +152,36 @@ let operate_help opr_load private_branch_anchor repo client total_opr_load flag 
 
     ignore @@ refresh repo client merge_count
 
-let rec operate opr_load private_branch_anchor repo client total_opr_load flag done_opr set_count get_count merge_count=
+
+let pre_operate_help opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count keylist=
+    (* let keylist = generatekey opr_load in *)
+    Printf.printf "\nclient %s:" client;
+    List.iter (fun key -> Printf.printf "%s " key) keylist;
+
+    ignore @@ build keylist private_branch_anchor (client ^ "_private") repo client set_count get_count
+
+let gen_read_key () = 
+    let str = [|"k";"l";"m";"n";"o";"p";"q";"r";"s";"t";"u";"v";"w";"x";"y";"z";"A";"B";"C";"D";|] in
+    let key = (Array.get str (Random.int 20))^(Array.get str (Random.int 20)) in
+    key
+
+let rec gen_read_key_list count =
+    if count > 0 then (
+        let key = gen_read_key () in 
+        key :: (gen_read_key_list (count-1) )
+    )else
+    []
+
+let rec operate opr_load private_branch_anchor repo client total_opr_load flag done_opr set_count get_count merge_count =
     
-    operate_help opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count;
+    let rw_load = opr_load/2 in
+    Random.init (1); (*so that each client get the same read keylist*)
+
+    let read_keylist = gen_read_key_list rw_load in
+    pre_operate_help rw_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count read_keylist; 
+
+    Random.init (Unix.getpid ());
+    post_operate_help rw_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count read_keylist;
         
     let new_opr_load, flag = 
     if (done_opr + (2 * opr_load)) < total_opr_load then
@@ -164,10 +192,19 @@ let rec operate opr_load private_branch_anchor repo client total_opr_load flag d
     
     let done_opr = done_opr + new_opr_load in
 
-    if flag=true then
+    if flag=true then (*flag denotes if it is a last round of operation or not. true = more rounds are there, false = no more rounds*)
         operate new_opr_load private_branch_anchor repo client total_opr_load flag done_opr set_count get_count merge_count
-    else    
-        operate_help new_opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count
+    else  (
+        let rw_load = opr_load/2 in
+        Random.init (1); (*so that each client get the same read keylist*)
+        let read_keylist = gen_read_key_list rw_load in
+        pre_operate_help rw_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count read_keylist; 
+
+        Random.init (Unix.getpid ());
+        post_operate_help rw_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count read_keylist
+    
+    )  
+        (* operate_help new_opr_load private_branch_anchor repo client total_opr_load flag set_count get_count merge_count *)
 
 let buildLibrary ip client total_opr_load set_count get_count merge_count =
     let conf = Irmin_scylla.config ip in
@@ -181,7 +218,6 @@ let buildLibrary ip client total_opr_load set_count get_count merge_count =
     operate opr_load private_branch_anchor repo client total_opr_load true done_opr set_count get_count merge_count;
     
     Lwt.return_unit 
-
 
 let _ =
         let hostip = Sys.argv.(1) in
