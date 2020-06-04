@@ -33,9 +33,12 @@ let mergeBranches outBranch currentBranch opr_meta =
 let rec mergeOpr branchList currentBranch repo opr_meta =
     match branchList with 
     | h::t -> (*print_string ("\ncurrent branch to merge: " ^ h);*)
-                Scylla_kvStore.of_branch repo h >>= fun branch ->    
-                ignore @@ mergeBranches branch currentBranch opr_meta;
-                mergeOpr t currentBranch repo opr_meta
+                Scylla_kvStore.of_branch repo h >>= fun branch -> 
+                if (currentBranch != branch) then (   
+                    ignore @@ mergeBranches branch currentBranch opr_meta;
+                    mergeOpr t currentBranch repo opr_meta)
+                    else
+                    Lwt.return_unit
     | _ -> (*print_string "branch list empty";*) 
         Lwt.return_unit
 
@@ -124,15 +127,27 @@ let publish_to_public repo ip publish_meta =
     ignore @@ publish public_branch_anchor (ip ^ "_private") publish_meta;
     Lwt.return_unit 
 
+let filter_str str =
+    let split = String.split_on_char '_' str in 
+    let split = List.rev split in
+    let status = List.hd split in
+    if status="public" then true else false
+
+let filter_public branchList =
+    List.filter filter_str branchList
+
 let refresh repo client refresh_meta =
     (* Printf.printf "\nrefreshing..."; *)
     (*merge current branch with the detached head of other*) 
     create_or_get_public_branch repo client >>= fun public_branch_anchor ->
     Scylla_kvStore.Branch.list repo >>= fun branchList -> 
-    ignore @@ mergeOpr branchList public_branch_anchor repo refresh_meta;  (*merge is returning unit*)
+    let branchList = filter_public branchList in
+    List.iter (fun x -> print_string x) branchList;
+    
+    mergeOpr branchList public_branch_anchor repo refresh_meta  (*merge is returning unit*)
 
-    create_or_get_private_branch repo client >>= fun private_branch_anchor ->
-    mergeBranches public_branch_anchor private_branch_anchor refresh_meta                                                                                                 
+    (* create_or_get_private_branch repo client >>= fun private_branch_anchor ->
+    mergeBranches public_branch_anchor private_branch_anchor refresh_meta                                                                                                  *)
 
 let post_operate_help opr_load private_branch_anchor repo client total_opr_load flag set_meta get_meta publish_meta refresh_meta read_keylist =
     (* Printf.printf "\nPost: client %s:" client; *)
