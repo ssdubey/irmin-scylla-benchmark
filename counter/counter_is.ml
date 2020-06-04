@@ -14,9 +14,6 @@ module Counter: Irmin.Contents.S with type t = int64 = struct
         let merge = Irmin.Merge.(option (v t merge))
 end
 
-(* let merge = Irmin.Merge.(option counter) *)
-
-
 module Scylla_kvStore = Irmin_scylla.KV(Counter)
 
 let updateMeta meta_name msg time = 
@@ -26,9 +23,8 @@ let updateMeta meta_name msg time =
     meta_name := (msg, t, count)
 
 let mergeBranches outBranch currentBranch merge_meta = 
-    (* merge_meta := !merge_meta + 1; *)
     let stime = Unix.gettimeofday () in 
-        Scylla_kvStore.merge_into ~info:(fun () -> Irmin.Info.empty) outBranch ~into:currentBranch;
+        ignore @@ Scylla_kvStore.merge_into ~info:(fun () -> Irmin.Info.empty) outBranch ~into:currentBranch;
     let etime = Unix.gettimeofday () in
         updateMeta merge_meta "mergebranches" (etime -. stime);
 
@@ -45,17 +41,6 @@ let rec mergeOpr branchList currentBranch repo merge_meta =
 
 let createValue () =
     Int64.of_int (Random.int 100)
-
-(* let find_in_db lib private_branch get_meta = 
-    try 
-    let stime = Unix.gettimeofday () in 
-        Scylla_kvStore.get private_branch [lib] >>= fun _ ->
-    let etime = Unix.gettimeofday () in
-    updateMeta get_meta "find_in_db" (etime -. stime);
-    (* Printf.printf "\n\nfind_in_db: %f" (etime -. stime); *)
-    Lwt.return_true
-    with 
-    _ -> Lwt.return_false *)
 
 let getvalue private_branch_anchor lib client get_meta =
     let stime = Unix.gettimeofday() in
@@ -89,24 +74,13 @@ let rec build liblist private_branch_anchor repo client set_meta get_meta rw = (
                         )
 
             | "read" -> 
-                getvalue private_branch_anchor lib client get_meta;
-                ());
+                ignore @@ getvalue private_branch_anchor lib client get_meta
+            
+            | _ -> failwith "wrong option for rw");
 
         build libls private_branch_anchor repo client set_meta get_meta rw;
 
     | [] -> Lwt.return_unit
-
-(* let readfile fileloc = 
-    let buf = Buffer.create 4096 in
-    try
-        while true do
-        let line = input_line fileloc in
-        Buffer.add_string buf line;
-        Buffer.add_char buf '\n'
-        done;
-        assert false 
-    with
-        End_of_file -> Buffer.contents buf *)
 
 (*generating key of 2B *)
 let gen_write_key () = 
@@ -138,7 +112,7 @@ let create_or_get_public_branch repo ip =
 
 let publish branch1 branch2 merge_meta = (*changes of branch2 will merge into branch1*)
     let stime = Unix.gettimeofday() in
-        Scylla_kvStore.merge_with_branch ~info:(fun () -> Irmin.Info.empty) branch1 branch2;
+        ignore @@ Scylla_kvStore.merge_with_branch ~info:(fun () -> Irmin.Info.empty) branch1 branch2;
     let etime = Unix.gettimeofday() in
     let diff = etime -. stime in
     updateMeta merge_meta "publish_merge" diff
@@ -155,7 +129,7 @@ let refresh repo client merge_meta =
     (*merge current branch with the detached head of other*) 
     create_or_get_public_branch repo client >>= fun public_branch_anchor ->
     Scylla_kvStore.Branch.list repo >>= fun branchList -> 
-    mergeOpr branchList public_branch_anchor repo merge_meta;  (*merge is returning unit*)
+    ignore @@ mergeOpr branchList public_branch_anchor repo merge_meta;  (*merge is returning unit*)
 
     create_or_get_private_branch repo client >>= fun private_branch_anchor ->
     mergeBranches public_branch_anchor private_branch_anchor merge_meta                                                                                                 
@@ -259,7 +233,7 @@ let _ =
         let merge_meta = ref ("", 0.0, 0) in 
 
         
-        buildLibrary hostip client (int_of_string total_opr_load) set_meta get_meta merge_meta;
+        ignore @@ buildLibrary hostip client (int_of_string total_opr_load) set_meta get_meta merge_meta;
 
         let (set_msg, set_time, set_count) = !set_meta in 
         let (get_msg, get_time, get_count) = !get_meta in 
