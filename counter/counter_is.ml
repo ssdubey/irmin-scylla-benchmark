@@ -89,8 +89,8 @@ let rec build liblist private_branch_anchor repo client set_meta get_meta rw = (
 
 (*generating key of 2B *)
 let gen_write_key () = 
-    let str = [|"1";"2";"3";"4";"5";"6";"7";"8";"9";"0";"a";"b";"c";"d";"e";"f";"g";"h";"i";"j";|] in
-    let key = (Array.get str (Random.int 20))^(Array.get str (Random.int 20)) in
+    let str = [|"1";"2";"3";"4";"5";"6";"7";"8";"9";"0";"a";"b";"c";"d";"e";"f";"g";"h";"i";"j";"k";"l";"m";"n";"o";"p";"q";"r";"s";"t";"u";"v";|] in
+    let key = (Array.get str (Random.int 32))^(Array.get str (Random.int 32)) in
     key
     
 (*generating 2B random key from limited keyspace*)
@@ -178,8 +178,8 @@ let pre_operate_help opr_load private_branch_anchor repo client total_opr_load f
     ignore @@ build keylist private_branch_anchor repo client set_meta get_meta "write"
 
 let gen_read_key () = 
-    let str = [|"k";"l";"m";"n";"o";"p";"q";"r";"s";"t";"u";"v";"w";"x";"y";"z";"A";"B";"C";"D";|] in
-    let key = (Array.get str (Random.int 20))^(Array.get str (Random.int 20)) in
+    let str = [|"w";"x";"w";"x";"y";"z";"A";"B";"C";"D";"E";"F";"G";"H";"I";"J";"K";"L";"M";"N";"O";"P";"Q";"R";"S";"T";"U";"V";"W";"X";"Y";"Z"|] in
+    let key = (Array.get str (Random.int 32))^(Array.get str (Random.int 32)) in
     key
 
 let rec gen_read_key_list count =
