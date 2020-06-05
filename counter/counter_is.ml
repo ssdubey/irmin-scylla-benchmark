@@ -30,17 +30,19 @@ let mergeBranches outBranch currentBranch opr_meta =
 
         Lwt.return_unit
 
-let rec mergeOpr branchList currentBranch currentBranch_string repo opr_meta =
+let rec mergeOpr branchList currentBranch currentBranch_string repo opr_meta = 
+    Printf.printf "\nthis is %s in mergeOpr" currentBranch_string;
     match branchList with 
-    | h::t -> (*Printf.printf "\ncurrent branch to merge: '%s'  currentbranch_string: '%s'" h currentBranch_string;*)
+    | h::t -> Printf.printf "\ncurrent branch to merge: '%s'  currentbranch_string: '%s'" h currentBranch_string;
             if (currentBranch_string <> h) then (  
                 Printf.printf "  merge of %s with %s" h currentBranch_string;
                 Scylla_kvStore.of_branch repo h >>= fun branch -> 
                  
                     ignore @@ mergeBranches branch currentBranch opr_meta;
-                    mergeOpr t currentBranch currentBranch_string repo opr_meta)
+                    mergeOpr t currentBranch currentBranch_string repo opr_meta
+                    )
                     else
-                    Lwt.return_unit
+                    mergeOpr t currentBranch currentBranch_string repo opr_meta
     | _ -> (*print_string "branch list empty";*) 
         Lwt.return_unit
 
@@ -144,8 +146,9 @@ let refresh repo client refresh_meta =
     (*merge current branch with the detached head of other*) 
     create_or_get_public_branch repo client >>= fun public_branch_anchor ->
     Scylla_kvStore.Branch.list repo >>= fun branchList -> 
+    (* List.iter (fun x -> Printf.printf " *%s " x) branchList; *)
     let branchList = filter_public branchList in
-    (* List.iter (fun x -> Printf.printf " refresh of %s with %s" client x) branchList; *)
+    (* List.iter (fun x -> Printf.printf " ~%s " x) branchList; *)
 
     mergeOpr branchList public_branch_anchor (client ^ "_public") repo refresh_meta  (*merge is returning unit*)
 
