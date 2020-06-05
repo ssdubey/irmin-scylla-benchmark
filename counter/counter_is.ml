@@ -4,7 +4,7 @@ module Counter: Irmin.Contents.S with type t = int64 = struct
 	type t = int64
 	let t = Irmin.Type.int64
 	
-	let merge ~old a b = print_string "merging";
+	let merge ~old a b = (*print_string "merging";*)
 	    let open Irmin.Merge.Infix in
 		old () >|=* fun old ->
         let old = match old with None -> 0L | Some o -> o in
@@ -32,9 +32,9 @@ let mergeBranches outBranch currentBranch opr_meta =
 
 let rec mergeOpr branchList currentBranch currentBranch_string repo opr_meta =
     match branchList with 
-    | h::t -> Printf.printf "\ncurrent branch to merge: '%s'  currentbranch_string: '%s'" h currentBranch_string;
+    | h::t -> (*Printf.printf "\ncurrent branch to merge: '%s'  currentbranch_string: '%s'" h currentBranch_string;*)
             if (currentBranch_string <> h) then (  
-                Printf.printf "\nnot same branch";
+                (*Printf.printf "\nnot same branch";*)
                 Scylla_kvStore.of_branch repo h >>= fun branch -> 
                  
                     ignore @@ mergeBranches branch currentBranch opr_meta;
@@ -144,7 +144,7 @@ let refresh repo client refresh_meta =
     create_or_get_public_branch repo client >>= fun public_branch_anchor ->
     Scylla_kvStore.Branch.list repo >>= fun branchList -> 
     let branchList = filter_public branchList in
-    List.iter (fun x -> print_string x) branchList;
+    (* List.iter (fun x -> print_string x) branchList; *)
 
     mergeOpr branchList public_branch_anchor (client ^ "_public") repo refresh_meta  (*merge is returning unit*)
 
@@ -256,19 +256,16 @@ let _ =
 
         let (set_msg, set_time, set_count) = !set_meta in 
         let (get_msg, get_time, get_count) = !get_meta in 
-        (* let (merge_msg, merge_time, merge_count) = !merge_meta in  *)
         let (publish_msg, publish_time, publish_count) = !publish_meta in 
         let (refresh_msg, refresh_time, refresh_count) = !refresh_meta in 
         
-        Printf.printf "\n\nset_time = %f  set_count = %d" set_time set_count;
+        Printf.printf "\n\nset_time = %f  \nset_count = %d" set_time set_count;
 
-        Printf.printf "\n\nget_time = %f  get_count = %d" get_time get_count;
+        Printf.printf "\n\nget_time = %f  \nget_count = %d" get_time get_count;
 
-        (* Printf.printf "\n\nmerge_time = %f  merge_count = %d" merge_time merge_count; *)
+        Printf.printf "\n\npublish_time = %f  \npublish_count = %d" publish_time publish_count;
 
-        Printf.printf "\n\npublish_time = %f  publish_count = %d" publish_time publish_count;
-
-        Printf.printf "\n\nrefresh_time = %f  refresh_count = %d" refresh_time refresh_count
+        Printf.printf "\n\nrefresh_time = %f  \nrefresh_count = %d" refresh_time refresh_count
 
         (* Printf.printf "\n\nset_msg = %s  set_time = %f  set_count = %d" set_msg set_time set_count;
 
