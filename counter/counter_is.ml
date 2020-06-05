@@ -31,11 +31,12 @@ let mergeBranches outBranch currentBranch opr_meta =
         Lwt.return_unit
 
 let rec mergeOpr branchList currentBranch currentBranch_string repo opr_meta = 
-    Printf.printf "\nthis is %s in mergeOpr" currentBranch_string;
+    (* Printf.printf "\nthis is %s in mergeOpr" currentBranch_string; *)
     match branchList with 
-    | h::t -> Printf.printf "\ncurrent branch to merge: '%s'  currentbranch_string: '%s'" h currentBranch_string;
+    | h::t -> 
+            (* Printf.printf "\ncurrent branch to merge: '%s'  currentbranch_string: '%s'" h currentBranch_string; *)
             if (currentBranch_string <> h) then (  
-                Printf.printf "  merge of %s with %s" h currentBranch_string;
+                (* Printf.printf "  merge of %s with %s" h currentBranch_string; *)
                 Scylla_kvStore.of_branch repo h >>= fun branch -> 
                  
                     ignore @@ mergeBranches branch currentBranch opr_meta;
@@ -65,7 +66,7 @@ let rec build liblist private_branch_anchor repo client set_meta get_meta rw = (
         (* find_in_db lib private_branch_anchor >>= fun boolval ->  *)
              
         (match rw with 
-            | "write" -> (let v = createValue () in
+            | "post_write" -> (let v = createValue () in
                         let stime = Unix.gettimeofday() in
                         
                         ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
@@ -74,6 +75,21 @@ let rec build liblist private_branch_anchor repo client set_meta get_meta rw = (
                         let etime = Unix.gettimeofday() in
                         let diff = etime -. stime in
                         updateMeta set_meta "build_write" diff;
+                                                
+                        (* getvalue private_branch_anchor lib client get_meta;
+                        Printf.printf "\nfalse_setting: %f" diff; *)
+                        
+                        )
+
+            | "pre_write" -> (let v = createValue () in
+                        (* let stime = Unix.gettimeofday() in *)
+                        
+                        ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
+                                                private_branch_anchor [lib] v;
+                        
+                        (* let etime = Unix.gettimeofday() in
+                        let diff = etime -. stime in
+                        updateMeta set_meta "build_write" diff; *)
                                                 
                         (* getvalue private_branch_anchor lib client get_meta;
                         Printf.printf "\nfalse_setting: %f" diff; *)
@@ -118,7 +134,7 @@ let create_or_get_public_branch repo ip =
     Scylla_kvStore.clone ~src:b_master ~dst:(ip ^ "_public")
 
 let publish branch1 branch2 publish_meta = (*changes of branch2 will merge into branch1*)
-    Printf.printf "\npublish of %s" branch2;
+    (* Printf.printf "\npublish of %s" branch2; *)
     let stime = Unix.gettimeofday() in
         ignore @@ Scylla_kvStore.merge_with_branch ~info:(fun () -> Irmin.Info.empty) branch1 branch2;
     let etime = Unix.gettimeofday() in
@@ -167,7 +183,7 @@ let post_operate_help opr_load private_branch_anchor repo client total_opr_load 
 
     ignore @@ build read_keylist private_branch_anchor repo client set_meta get_meta "read";
 
-    ignore @@ build write_keylist private_branch_anchor repo client set_meta get_meta "write";
+    ignore @@ build write_keylist private_branch_anchor repo client set_meta get_meta "post_write";
 
     ignore @@ publish_to_public repo client publish_meta;
 
@@ -179,7 +195,7 @@ let pre_operate_help opr_load private_branch_anchor repo client total_opr_load f
     (* Printf.printf "\nPre: client %s:" client; *)
     (* List.iter (fun key -> Printf.printf "%s " key) keylist; *)
 
-    ignore @@ build keylist private_branch_anchor repo client set_meta get_meta "write"
+    ignore @@ build keylist private_branch_anchor repo client set_meta get_meta "pre_write"
 
 let gen_read_key () = 
     let str = [|"w";"x";"w";"x";"y";"z";"A";"B";"C";"D";"E";"F";"G";"H";"I";"J";"K";"L";"M";"N";"O";"P";"Q";"R";"S";"T";"U";"V";"W";"X";"Y";"Z"|] in
