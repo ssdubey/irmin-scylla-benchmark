@@ -34,7 +34,7 @@ let rec mergeOpr branchList currentBranch currentBranch_string repo opr_meta =
     match branchList with 
     | h::t -> (*Printf.printf "\ncurrent branch to merge: '%s'  currentbranch_string: '%s'" h currentBranch_string;*)
             if (currentBranch_string <> h) then (  
-                (*Printf.printf "\nnot same branch";*)
+                Printf.printf "  merge of %s with %s" h currentBranch_string;
                 Scylla_kvStore.of_branch repo h >>= fun branch -> 
                  
                     ignore @@ mergeBranches branch currentBranch opr_meta;
@@ -116,6 +116,7 @@ let create_or_get_public_branch repo ip =
     Scylla_kvStore.clone ~src:b_master ~dst:(ip ^ "_public")
 
 let publish branch1 branch2 publish_meta = (*changes of branch2 will merge into branch1*)
+    Printf.printf "\npublish of %s" branch2;
     let stime = Unix.gettimeofday() in
         ignore @@ Scylla_kvStore.merge_with_branch ~info:(fun () -> Irmin.Info.empty) branch1 branch2;
     let etime = Unix.gettimeofday() in
@@ -144,7 +145,7 @@ let refresh repo client refresh_meta =
     create_or_get_public_branch repo client >>= fun public_branch_anchor ->
     Scylla_kvStore.Branch.list repo >>= fun branchList -> 
     let branchList = filter_public branchList in
-    (* List.iter (fun x -> print_string x) branchList; *)
+    (* List.iter (fun x -> Printf.printf " refresh of %s with %s" client x) branchList; *)
 
     mergeOpr branchList public_branch_anchor (client ^ "_public") repo refresh_meta  (*merge is returning unit*)
 
@@ -259,13 +260,16 @@ let _ =
         let (publish_msg, publish_time, publish_count) = !publish_meta in 
         let (refresh_msg, refresh_time, refresh_count) = !refresh_meta in 
         
-        Printf.printf "\n\nset_time = %f  \nset_count = %d" set_time set_count;
+        let total_time = set_time +. get_time +. publish_time +. refresh_time in 
+        (* Printf.printf "\n\nset_time = %f;set_count = %d;get_time = %f;get_count = %d;publish_time = %f;publish_count = %d;refresh_time = %f;refresh_count = %d;total_time = %f" set_time set_count get_time get_count publish_time publish_count refresh_time refresh_count total_time; *)
 
-        Printf.printf "\n\nget_time = %f  \nget_count = %d" get_time get_count;
+        Printf.printf "\n%f;%d;%f;%d;%f;%d;%f;%d;%f" set_time set_count get_time get_count publish_time publish_count refresh_time refresh_count total_time;
+        
+        (* Printf.printf "\n\nget_time = %f  get_count = %d" get_time get_count;
 
-        Printf.printf "\n\npublish_time = %f  \npublish_count = %d" publish_time publish_count;
+        Printf.printf "\n\npublish_time = %f  publish_count = %d" publish_time publish_count;
 
-        Printf.printf "\n\nrefresh_time = %f  \nrefresh_count = %d" refresh_time refresh_count
+        Printf.printf "\n\nrefresh_time = %f  refresh_count = %d" refresh_time refresh_count *)
 
         (* Printf.printf "\n\nset_msg = %s  set_time = %f  set_count = %d" set_msg set_time set_count;
 
