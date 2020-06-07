@@ -11,7 +11,7 @@ module Counter: Irmin.Contents.S with type t = int64 = struct
 		old () >|=* fun old ->
         let old = match old with None -> 0L | Some o -> o in
         let (+) = Int64.add and (-) = Int64.sub in 
-        Printf.printf "\n  %d  a=%d  b=%d  old=%d" !mc (Int64.to_int a) (Int64.to_int b) (Int64.to_int old);
+        Printf.printf "  conflict:  %d  a=%d  b=%d  old=%d" !mc (Int64.to_int a) (Int64.to_int b) (Int64.to_int old);
         a + b - old
         
         let merge = Irmin.Merge.(option (v t merge))
@@ -55,20 +55,19 @@ let rec mergeOpr branchList currentBranch currentBranch_string repo opr_meta =
         Lwt.return_unit
 
 let createValue () =
-    (* Int64.of_int (Random.int 100) *)
-    Int64.of_int 1
+    Int64.of_int (Random.int 10)
+    (* Int64.of_int 1 *)
 
 let getvalue private_branch_anchor lib client get_meta =
     print "getvalue" client;
     let stime = Unix.gettimeofday() in
         Scylla_kvStore.get private_branch_anchor [lib] >>= fun item -> 
-        (* Printf.printf "\nclient= %s  key=%s  value=%d\n" client lib (Int64.to_int item);  *)
-        ignore item;
+        Printf.printf "\nclient= %s  key=%s  value=%d" client lib (Int64.to_int item); 
+        (* ignore item; *)
     let etime = Unix.gettimeofday() in
     updateMeta get_meta "getvalue" (etime -. stime);
     
     Lwt.return_unit
-
 
 let rec build liblist private_branch_anchor repo client set_meta get_meta rw = (*cbranch_string as in current branch is only used for putting string in db*)
     match liblist with 
@@ -102,7 +101,7 @@ let rec build liblist private_branch_anchor repo client set_meta get_meta rw = (
 (*generating key of 2B *)
 let gen_write_key () = 
   let str = [|"1";"2";"3";"4";"5";"6";"7";"8";"9";"0";"a";"b";"c";"d";"e";"f";"g";"h";"i";"j";"k";"l";"m";"n";"o";"p";"q";"r";"s";"t";"u";"v";|] in
-  let key = (Array.get str (Random.int 32))^(Array.get str (Random.int 32)) in
+  let key = (Array.get str (Random.int 2))^(Array.get str (Random.int 2)) in
   key
 
 
@@ -127,7 +126,6 @@ let create_or_get_public_branch repo ip =
   with _ -> 
   Scylla_kvStore.master repo >>= fun b_master ->
   Scylla_kvStore.clone ~src:b_master ~dst:(ip ^ "_public")
-
 
 let publish branch1 branch2 publish_meta client = (*changes of branch2 will merge into branch1*)
     (* Printf.printf "\npublish of %s" branch2; *)
@@ -190,18 +188,25 @@ let post_operate_help opr_load private_branch_anchor repo client total_opr_load 
   (* Printf.printf "\nPost: client %s:" client; *)
   print "post_operate_help" client;
   let write_keylist = generate_write_key_list opr_load in (*generate_write_key_list is generating key for write operation*)
-  List.iter (fun key -> Printf.printf "%s " key) write_keylist;
+  Printf.printf "\n";
+  List.iter (fun key -> Printf.printf "k=%s " key) write_keylist;
   ignore @@ build write_keylist private_branch_anchor repo client set_meta get_meta "post_write";
 
   ignore @@ build write_keylist private_branch_anchor repo client set_meta get_meta "read";
-
+  ignore @@ (create_or_get_public_branch repo client >>= fun public_branch_anchor ->
+Printf.printf " publishing... ";
   ignore @@ publish_to_public repo client publish_meta;
   
-  ignore (old_commit >>= fun old_commit ->
-                  squash repo (client^"_public") old_commit);
+  ignore @@ build write_keylist public_branch_anchor repo client set_meta get_meta "read";
 
-  ignore @@ refresh repo client refresh_meta
-  (* Lwt.return_unit *)
+(* Printf.printf " squashing... ";
+  ignore (old_commit >>= fun old_commit ->
+                  squash repo (client^"_public") old_commit); *)
+
+Printf.printf " refreshing... ";
+  ignore @@ refresh repo client refresh_meta;
+  ignore @@ build write_keylist public_branch_anchor repo client set_meta get_meta "read";
+  Lwt.return_unit)
   
 
 let rec operate opr_load private_branch_anchor repo client total_opr_load flag done_opr set_meta get_meta publish_meta refresh_meta loop_count old_commit =
@@ -238,13 +243,13 @@ let rec operate opr_load private_branch_anchor repo client total_opr_load flag d
 
 
 let special_fun repo client = 
-  create_or_get_public_branch repo client >>= fun public_branch_anchor ->
+  (* create_or_get_public_branch repo client >>= fun public_branch_anchor ->
   
   ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
-  public_branch_anchor ["dk"] (Int64.of_int 11);
+  public_branch_anchor ["AA"] (Int64.of_int 11);
 
-  Scylla_kvStore.Branch.get repo (client^"_public") >>= fun old_commit ->
-  Lwt.return old_commit
+  Scylla_kvStore.Branch.get repo (client^"_public") >>= fun old_commit -> *)
+  Lwt.return "old_commit"
 
 
 let buildLibrary ip client total_opr_load set_meta get_meta publish_meta refresh_meta =
