@@ -11,7 +11,7 @@ module Counter: Irmin.Contents.S with type t = int64 = struct
 		old () >|=* fun old ->
         let old = match old with None -> 0L | Some o -> o in
         let (+) = Int64.add and (-) = Int64.sub in 
-        Printf.printf "  conflict:  %d  a=%d  b=%d  old=%d" !mc (Int64.to_int a) (Int64.to_int b) (Int64.to_int old);
+        (* Printf.printf "  conflict:  %d  a=%d  b=%d  old=%d" !mc (Int64.to_int a) (Int64.to_int b) (Int64.to_int old); *)
         a + b - old
         
         let merge = Irmin.Merge.(option (v t merge))
@@ -32,7 +32,7 @@ let mergeBranches outBranch currentBranch opr_meta =
     let stime = Unix.gettimeofday () in 
         ignore @@ Scylla_kvStore.merge_into ~info:(fun () -> Irmin.Info.empty) outBranch ~into:currentBranch;
     let etime = Unix.gettimeofday () in
-    Printf.printf "  *%f*" (etime -. stime);
+    (* Printf.printf "  *%f*" (etime -. stime); *)
         updateMeta opr_meta "mergebranches" (etime -. stime);
 
         Lwt.return_unit
@@ -62,8 +62,8 @@ let getvalue private_branch_anchor lib client get_meta =
     print "getvalue" client;
     let stime = Unix.gettimeofday() in
         Scylla_kvStore.get private_branch_anchor [lib] >>= fun item -> 
-        Printf.printf "\nclient= %s  key=%s  value=%d" client lib (Int64.to_int item); 
-        (* ignore item; *)
+        (* Printf.printf "\nclient= %s  key=%s  value=%d" client lib (Int64.to_int item);  *)
+        ignore item;
     let etime = Unix.gettimeofday() in
     updateMeta get_meta "getvalue" (etime -. stime);
     
@@ -134,7 +134,7 @@ let publish branch1 branch2 publish_meta client = (*changes of branch2 will merg
         ignore @@ Scylla_kvStore.merge_with_branch ~info:(fun () -> Irmin.Info.empty) branch1 branch2;
     let etime = Unix.gettimeofday() in
     let diff = etime -. stime in
-    Printf.printf "  (%f)" diff;
+    (* Printf.printf "  (%f)" diff; *)
     updateMeta publish_meta "publish_merge" diff
 
 let publish_to_public repo ip publish_meta = 
@@ -188,13 +188,13 @@ let post_operate_help opr_load private_branch_anchor repo client total_opr_load 
   (* Printf.printf "\nPost: client %s:" client; *)
   print "post_operate_help" client;
   let write_keylist = generate_write_key_list opr_load in (*generate_write_key_list is generating key for write operation*)
-  Printf.printf "\n";
-  List.iter (fun key -> Printf.printf "k=%s " key) write_keylist;
+  (* Printf.printf "\n";
+  List.iter (fun key -> Printf.printf "k=%s " key) write_keylist; *)
   ignore @@ build write_keylist private_branch_anchor repo client set_meta get_meta "post_write";
 
   ignore @@ build write_keylist private_branch_anchor repo client set_meta get_meta "read";
   ignore @@ (create_or_get_public_branch repo client >>= fun public_branch_anchor ->
-Printf.printf " publishing... ";
+(* Printf.printf " publishing... "; *)
   ignore @@ publish_to_public repo client publish_meta;
   
   ignore @@ build write_keylist public_branch_anchor repo client set_meta get_meta "read";
@@ -203,7 +203,7 @@ Printf.printf " publishing... ";
   ignore (old_commit >>= fun old_commit ->
                   squash repo (client^"_public") old_commit); *)
 
-Printf.printf " refreshing... ";
+(* Printf.printf " refreshing... "; *)
   ignore @@ refresh repo client refresh_meta;
   ignore @@ build write_keylist public_branch_anchor repo client set_meta get_meta "read";
   Lwt.return_unit)
@@ -291,5 +291,5 @@ let _ =
   let total_time = set_time +. get_time +. publish_time +. refresh_time in 
   (* Printf.printf "\n\nset_time = %f;set_count = %d;get_time = %f;get_count = %d;publish_time = %f;publish_count = %d;refresh_time = %f;refresh_count = %d;total_time = %f" set_time set_count get_time get_count publish_time publish_count refresh_time refresh_count total_time; *)
 
-  Printf.printf "\n\n\n%f; %d; %f; %d; %f; %d; %f; %d; %f\n\n" set_time set_count get_time get_count publish_time publish_count refresh_time refresh_count total_time;
+  Printf.printf "\n%f; %d; %f; %d; %f; %d; %f; %d; %f" set_time set_count get_time get_count publish_time publish_count refresh_time refresh_count total_time;
   
