@@ -5,13 +5,12 @@ module Counter: Irmin.Contents.S with type t = int64 = struct
 	let t = Irmin.Type.int64
 	let mc = ref 0
     let merge ~old a b = 
-        (* Printf.printf "\n** merging %d %d" (Int64.to_int a) (Int64.to_int b); *)
         mc:=!mc+1;
 	    let open Irmin.Merge.Infix in
 		old () >|=* fun old ->
         let old = match old with None -> 0L | Some o -> o in
         let (+) = Int64.add and (-) = Int64.sub in 
-        (* Printf.printf "  conflict:  %d  a=%d  b=%d  old=%d" !mc (Int64.to_int a) (Int64.to_int b) (Int64.to_int old); *)
+        Printf.printf "  conflict:  %d  a=%d  b=%d  old=%d" !mc (Int64.to_int a) (Int64.to_int b) (Int64.to_int old);
         a + b - old
         
         let merge = Irmin.Merge.(option (v t merge))
@@ -55,14 +54,14 @@ let rec mergeOpr branchList currentBranch currentBranch_string repo opr_meta =
         Lwt.return_unit
 
 let createValue () =
-    Int64.of_int (Random.int 100)
+    Int64.of_int (Random.int 10)
     (* Int64.of_int 1 *)
 
 let getvalue private_branch_anchor lib client get_meta =
     print "getvalue" client;
     let stime = Unix.gettimeofday() in
         Scylla_kvStore.get private_branch_anchor [lib] >>= fun item -> 
-        (* Printf.printf "\nclient= %s  key=%s  value=%d" client lib (Int64.to_int item);  *)
+        Printf.printf "\nclient= %s  key=%s  value=%d" client lib (Int64.to_int item); 
         ignore item;
     let etime = Unix.gettimeofday() in
     updateMeta get_meta "getvalue" (etime -. stime);
@@ -101,7 +100,7 @@ let rec build liblist private_branch_anchor repo client set_meta get_meta rw = (
 (*generating key of 2B *)
 let gen_write_key () = 
   let str = [|"1";"2";"3";"4";"5";"6";"7";"8";"9";"0";"a";"b";"c";"d";"e";"f";"g";"h";"i";"j";"k";"l";"m";"n";"o";"p";"q";"r";"s";"t";"u";"v";|] in
-  let key = (Array.get str (Random.int 32))^(Array.get str (Random.int 32)) in
+  let key = (Array.get str (Random.int 2))^(Array.get str (Random.int 2)) in
   key
 
 
@@ -134,7 +133,7 @@ let publish branch1 branch2 publish_meta client = (*changes of branch2 will merg
         ignore @@ Scylla_kvStore.merge_with_branch ~info:(fun () -> Irmin.Info.empty) branch1 branch2;
     let etime = Unix.gettimeofday() in
     let diff = etime -. stime in
-    (* Printf.printf "  (%f)" diff; *)
+    Printf.printf "  (%f)" diff;
     updateMeta publish_meta "publish_merge" diff
 
 let publish_to_public repo ip publish_meta = 
@@ -172,48 +171,46 @@ let refresh repo client refresh_meta =
   mergeBranches public_branch_anchor private_branch_anchor refresh_meta                                                                                                  *)
 
 
-(* let squash repo private_branch_str old_commit = 
-  Scylla_kvStore.Branch.get repo private_branch_str >>= fun latest_cmt ->
+let squash repo public_branch_str old_commit = 
+  Scylla_kvStore.Branch.get repo public_branch_str >>= fun latest_cmt ->
   let latest_tree = Scylla_kvStore.Commit.tree latest_cmt in
 
   (* Scylla_kvStore.Branch.get repo public_branch_str >>= fun old_commit -> *)
   Scylla_kvStore.Commit.v repo ~info:(Irmin.Info.empty) ~parents:[Scylla_kvStore.Commit.hash old_commit] latest_tree >>= fun new_commit -> 
-  (* print "%s" (Irmin.Type.to_string (Scylla_kvStore.Commit.t repo) new_commit); *)
-
-  Scylla_kvStore.of_branch repo private_branch_str >>= fun private_branch_anchor ->
-  Scylla_kvStore.Head.set private_branch_anchor new_commit *)
+  
+  Scylla_kvStore.of_branch repo public_branch_str >>= fun private_branch_anchor ->
+  Scylla_kvStore.Head.set private_branch_anchor new_commit
 
 
 let post_operate_help opr_load private_branch_anchor repo client total_opr_load flag set_meta get_meta publish_meta refresh_meta old_commit =
   (* Printf.printf "\nPost: client %s:" client; *)
   print "post_operate_help" client;
   let write_keylist = generate_write_key_list opr_load in (*generate_write_key_list is generating key for write operation*)
-  (* Printf.printf "\n";
-  List.iter (fun key -> Printf.printf "k=%s " key) write_keylist; *)
+  Printf.printf "\n";
+  List.iter (fun key -> Printf.printf "k=%s " key) write_keylist;
   ignore @@ build write_keylist private_branch_anchor repo client set_meta get_meta "post_write";
 
   ignore @@ build write_keylist private_branch_anchor repo client set_meta get_meta "read";
-  (* ignore @@ (create_or_get_public_branch repo client >>= fun public_branch_anchor -> *)
-(* Printf.printf " publishing... "; *)
+  ignore @@ (create_or_get_public_branch repo client >>= fun public_branch_anchor ->
+Printf.printf " publishing... ";
   ignore @@ publish_to_public repo client publish_meta;
   
-  (* ignore @@ build write_keylist public_branch_anchor repo client set_meta get_meta "read"; *)
+  ignore @@ build write_keylist public_branch_anchor repo client set_meta get_meta "read";
 
-(* Printf.printf " squashing... ";
+Printf.printf " squashing... ";
   ignore (old_commit >>= fun old_commit ->
-                  squash repo (client^"_public") old_commit); *)
+                  squash repo (client^"_public") old_commit);
 
-(* Printf.printf " refreshing... "; *)
-  ignore @@ refresh repo client refresh_meta
-  (* ignore @@ build write_keylist public_branch_anchor repo client set_meta get_meta "read"; *)
-  (* Lwt.return_unit) *)
+Printf.printf " refreshing... ";
+  ignore @@ refresh repo client refresh_meta;
+  ignore @@ build write_keylist public_branch_anchor repo client set_meta get_meta "read";
+  Lwt.return_unit)
   
 
 let rec operate opr_load private_branch_anchor repo client total_opr_load flag done_opr set_meta get_meta publish_meta refresh_meta loop_count old_commit =
   print "operate" client;
   let rw_load = opr_load/2 in
-  Random.init (1); (*so that each client get the same read keylist*)
-
+  
   Random.init ((Unix.getpid ()) + loop_count);
   post_operate_help rw_load private_branch_anchor repo client total_opr_load flag set_meta get_meta publish_meta refresh_meta old_commit;
       
@@ -232,7 +229,6 @@ let rec operate opr_load private_branch_anchor repo client total_opr_load flag d
       operate new_opr_load private_branch_anchor repo client total_opr_load flag done_opr set_meta get_meta publish_meta refresh_meta loop_count old_commit
   else  if new_opr_load != 0 then(
       let rw_load = new_opr_load/2 in
-      Random.init (1); (*so that each client get the same read keylist*)
       
       let loop_count = loop_count + 1 in
       Random.init ((Unix.getpid ()) + loop_count);
@@ -243,13 +239,13 @@ let rec operate opr_load private_branch_anchor repo client total_opr_load flag d
 
 
 let special_fun repo client = 
-  (* create_or_get_public_branch repo client >>= fun public_branch_anchor ->
+  create_or_get_public_branch repo client >>= fun public_branch_anchor ->
   
   ignore @@ Scylla_kvStore.set_exn ~info:(fun () -> Irmin.Info.empty) 
   public_branch_anchor ["AA"] (Int64.of_int 11);
 
-  Scylla_kvStore.Branch.get repo (client^"_public") >>= fun old_commit -> *)
-  Lwt.return "old_commit"
+  Scylla_kvStore.Branch.get repo (client^"_public") >>= fun old_commit ->
+  Lwt.return old_commit
 
 
 let buildLibrary ip client total_opr_load set_meta get_meta publish_meta refresh_meta =
@@ -291,5 +287,5 @@ let _ =
   let total_time = set_time +. get_time +. publish_time +. refresh_time in 
   (* Printf.printf "\n\nset_time = %f;set_count = %d;get_time = %f;get_count = %d;publish_time = %f;publish_count = %d;refresh_time = %f;refresh_count = %d;total_time = %f" set_time set_count get_time get_count publish_time publish_count refresh_time refresh_count total_time; *)
 
-  Printf.printf "\n%f; %d; %f; %d; %f; %d; %f; %d; %f" set_time set_count get_time get_count publish_time publish_count refresh_time refresh_count total_time;
+  Printf.printf "\n\n%f; %d; %f; %d; %f; %d; %f; %d; %f\n\n" set_time set_count get_time get_count publish_time publish_count refresh_time refresh_count total_time;
   
