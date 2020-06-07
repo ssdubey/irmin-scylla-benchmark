@@ -55,7 +55,7 @@ let rec mergeOpr branchList currentBranch currentBranch_string repo opr_meta =
         Lwt.return_unit
 
 let createValue () =
-    Int64.of_int (Random.int 10)
+    Int64.of_int (Random.int 100)
     (* Int64.of_int 1 *)
 
 let getvalue private_branch_anchor lib client get_meta =
@@ -101,7 +101,7 @@ let rec build liblist private_branch_anchor repo client set_meta get_meta rw = (
 (*generating key of 2B *)
 let gen_write_key () = 
   let str = [|"1";"2";"3";"4";"5";"6";"7";"8";"9";"0";"a";"b";"c";"d";"e";"f";"g";"h";"i";"j";"k";"l";"m";"n";"o";"p";"q";"r";"s";"t";"u";"v";|] in
-  let key = (Array.get str (Random.int 2))^(Array.get str (Random.int 2)) in
+  let key = (Array.get str (Random.int 32))^(Array.get str (Random.int 32)) in
   key
 
 
@@ -172,7 +172,7 @@ let refresh repo client refresh_meta =
   mergeBranches public_branch_anchor private_branch_anchor refresh_meta                                                                                                  *)
 
 
-let squash repo private_branch_str old_commit = 
+(* let squash repo private_branch_str old_commit = 
   Scylla_kvStore.Branch.get repo private_branch_str >>= fun latest_cmt ->
   let latest_tree = Scylla_kvStore.Commit.tree latest_cmt in
 
@@ -181,7 +181,7 @@ let squash repo private_branch_str old_commit =
   (* print "%s" (Irmin.Type.to_string (Scylla_kvStore.Commit.t repo) new_commit); *)
 
   Scylla_kvStore.of_branch repo private_branch_str >>= fun private_branch_anchor ->
-  Scylla_kvStore.Head.set private_branch_anchor new_commit
+  Scylla_kvStore.Head.set private_branch_anchor new_commit *)
 
 
 let post_operate_help opr_load private_branch_anchor repo client total_opr_load flag set_meta get_meta publish_meta refresh_meta old_commit =
@@ -193,20 +193,20 @@ let post_operate_help opr_load private_branch_anchor repo client total_opr_load 
   ignore @@ build write_keylist private_branch_anchor repo client set_meta get_meta "post_write";
 
   ignore @@ build write_keylist private_branch_anchor repo client set_meta get_meta "read";
-  ignore @@ (create_or_get_public_branch repo client >>= fun public_branch_anchor ->
+  (* ignore @@ (create_or_get_public_branch repo client >>= fun public_branch_anchor -> *)
 (* Printf.printf " publishing... "; *)
   ignore @@ publish_to_public repo client publish_meta;
   
-  ignore @@ build write_keylist public_branch_anchor repo client set_meta get_meta "read";
+  (* ignore @@ build write_keylist public_branch_anchor repo client set_meta get_meta "read"; *)
 
 (* Printf.printf " squashing... ";
   ignore (old_commit >>= fun old_commit ->
                   squash repo (client^"_public") old_commit); *)
 
 (* Printf.printf " refreshing... "; *)
-  ignore @@ refresh repo client refresh_meta;
-  ignore @@ build write_keylist public_branch_anchor repo client set_meta get_meta "read";
-  Lwt.return_unit)
+  ignore @@ refresh repo client refresh_meta
+  (* ignore @@ build write_keylist public_branch_anchor repo client set_meta get_meta "read"; *)
+  (* Lwt.return_unit) *)
   
 
 let rec operate opr_load private_branch_anchor repo client total_opr_load flag done_opr set_meta get_meta publish_meta refresh_meta loop_count old_commit =
